@@ -1,0 +1,74 @@
+name: docker-services-forgejo-runner
+
+volumes:
+  forgejo-runner-data:
+    external: true
+
+services:
+  docker:
+    image: docker:dind
+    restart: 'unless-stopped'
+    privileged: 'true'
+    networks:
+      default:
+        aliases:
+          - forgejo-docker-container
+    command: ['dockerd', '-H', 'tcp://0.0.0.0:2375', '--tls=false']
+    healthcheck:
+      test: docker -H tcp://localhost:2375 info || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+
+  runner-setup:
+    image: my/forgejo-runner
+    pull_policy: never
+    build:
+      context: ./build
+      additional_contexts:
+        certs: ../proxy/assets/certs/ca
+      args:
+        - RUNNER_VERSION=6
+    restart: 'no'
+    user: root
+    command: '/bin/sh /assets/init/setup.sh'
+    volumes:
+      - type: bind
+        source: ./assets
+        target: /assets
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: forgejo-runner-data
+        target: /data
+
+  runner:
+    image: my/forgejo-runner
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      docker:
+        condition: service_healthy
+      runner-setup:
+        condition: service_completed_successfully
+    networks:
+      default:
+        aliases:
+          - forgejo-runner-container
+    user: 1000:1000
+    command: '/bin/sh -c "sleep 5; forgejo-runner daemon --config /assets/configs/config.yml"'
+    volumes:
+      - type: bind
+        source: ./assets
+        target: /assets
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: forgejo-runner-data
+        target: /data
+    environment:
+      DOCKER_HOST: tcp://forgejo-docker-container:2375
