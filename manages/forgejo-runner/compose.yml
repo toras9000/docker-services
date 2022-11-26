@@ -1,0 +1,46 @@
+name: docker-services-forgejo-runner
+services:
+  docker:
+    image: docker:dind
+    restart: 'unless-stopped'
+    privileged: 'true'
+    networks:
+      default:
+        aliases:
+          - forgejo-docker-container
+    command: ['dockerd', '-H', 'tcp://0.0.0.0:2375', '--tls=false']
+    healthcheck:
+      test: docker -H tcp://localhost:2375 info || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+
+  runner:
+    image: code.forgejo.org/forgejo/runner:5
+    restart: unless-stopped
+    depends_on:
+      docker:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - forgejo-runner-container
+    user: 1000:1000
+    command: '/bin/sh -c "sleep 5; forgejo-runner daemon"'
+    volumes:
+      - type: volume
+        source: forgejo-runner-data
+        target: /data
+    environment:
+      DOCKER_HOST: tcp://forgejo-docker-container:2375
+
+volumes:
+  forgejo-runner-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true

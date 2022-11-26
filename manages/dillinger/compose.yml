@@ -1,0 +1,25 @@
+name: docker-services-dillinger
+services:
+  app:
+    image: lscr.io/linuxserver/dillinger:latest
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - dillinger-app-container
+    volumes:
+      - type: volume
+        source: dillinger-app-data
+        target: /config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Tokyo
+
+volumes:
+  dillinger-app-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true

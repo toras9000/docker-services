@@ -1,0 +1,43 @@
+name: docker-services-forgejo-runner-init
+services:
+  init:
+    image: code.forgejo.org/forgejo/runner:5
+    user: root
+    working_dir: /data
+    command: bash /init/setup.sh
+    volumes:
+      - type: bind
+        source: ./assets/init
+        target: /init
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: forgejo-runner-data
+        target: /data
+
+  register:
+    image: code.forgejo.org/forgejo/runner:5
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - forgejo-runner-container
+    user: "1000:1000"
+    working_dir: /data
+    command: forgejo-runner register
+    volumes:
+      - type: volume
+        source: forgejo-runner-data
+        target: /data
+
+volumes:
+  forgejo-runner-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
