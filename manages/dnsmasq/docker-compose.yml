@@ -1,0 +1,17 @@
+version: '3.5'
+
+services:
+  app:
+    image: my/dnsmasq
+    build: ./build
+    command: dnsmasq --keep-in-foreground --conf-file=/work/configs/dnsmasq.conf
+    restart: unless-stopped
+    ports:
+      - "192.168.1.10:53:53/tcp"
+      - "192.168.1.10:53:53/udp"
+    volumes:
+      - ./assets/configs:/work/configs
+      - ./assets/names:/work/names
+    environment:
+      - TZ=Asia/Tokyo
+

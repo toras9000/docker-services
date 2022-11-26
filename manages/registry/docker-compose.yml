@@ -1,0 +1,32 @@
+version: '3.5'
+services:
+  app:
+    image: registry:2
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - registry-app-container
+    volumes:
+      - ../../volumes/registry/app/repos:/var/lib/registry
+      - ./assets:/assets
+      - ./assets/configs/registry-config.yml:/etc/docker/registry/config.yml
+    environment:
+      - TZ=Asia/Tokyo
+
+  auth:
+    image: cesanta/docker_auth:1
+    restart: unless-stopped
+    command: /assets/configs/auth-config.yml
+    networks:
+      composes-frontend:
+        aliases:
+          - registry-auth-container
+    volumes:
+      - ./assets:/assets
+    environment:
+      - TZ=Asia/Tokyo
+
+networks:
+  composes-frontend:
+    external: true

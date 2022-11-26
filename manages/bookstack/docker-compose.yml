@@ -1,0 +1,47 @@
+version: '3.5'
+services:
+  db:
+    image: lscr.io/linuxserver/mariadb:10.6.10
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - bookstack-db-container
+    volumes:
+      - ../../volumes/bookstack/db:/config
+    environment:
+      - TZ=Asia/Tokyo
+      - PUID=1000
+      - PGID=1000
+      - MYSQL_ROOT_PASSWORD=bookstack_rootpass
+      - MYSQL_DATABASE=bookstack_store
+      - MYSQL_USER=bookstack_user
+      - MYSQL_PASSWORD=bookstack_pass
+
+  app:
+    image: lscr.io/linuxserver/bookstack:22.10.2
+    restart: unless-stopped
+    depends_on:
+      - db
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - bookstack-app-container
+    volumes:
+      - ../../volumes/bookstack/app:/config
+      - ./assets/init:/custom-cont-init.d
+      - ./assets/template:/assets/template
+    environment:
+      - TZ=Asia/Tokyo
+      - PUID=1000
+      - PGID=1000
+      - APP_URL=https://bookstack.myserver.home
+      - DB_HOST=bookstack-db-container
+      - DB_DATABASE=bookstack_store
+      - DB_USER=bookstack_user
+      - DB_PASS=bookstack_pass
+
+networks:
+  composes-frontend:
+    external: true

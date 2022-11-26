@@ -1,0 +1,53 @@
+version: '3.5'
+services:
+  db:
+    image: postgres:12
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - kallithea-db-container
+    volumes:
+      - ../../volumes/kallithea/db:/var/lib/postgresql/data
+    environment:
+      - TZ=JST-9
+      - POSTGRES_USER=kallithea_user
+      - POSTGRES_PASSWORD=kallithea_secret
+      - POSTGRES_DB=kallithea_store
+
+  app:
+    image: toras9000/kallithea-mp:0.7.0
+    command: dumb-init bash /kallithea/assets/patched_startup.sh
+    restart: unless-stopped
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - kallithea-app-container
+    ports:
+      - "2222:22"
+    volumes:
+      - ../../volumes/kallithea/app/config:/kallithea/config
+      - ../../volumes/kallithea/app/repos:/kallithea/repos
+      - ../../volumes/kallithea/app/host_keys:/kallithea/host_keys
+      - ../../volumes/kallithea/app/ssh:/home/kallithea/.ssh
+      - ./assets:/kallithea/assets
+    environment:
+      - TZ=JST-9
+      - KALLITHEA_EXTERNAL_DB=postgres://kallithea_user:kallithea_secret@kallithea-db-container/kallithea_store
+      - KALLITHEA_ADMIN_USER=admin
+      - KALLITHEA_ADMIN_PASS=admin123
+      - KALLITHEA_ADMIN_MAIL=admin@example.com
+      - KALLITHEA_LOCALE=ja_JP.UTF-8
+      - KALLITHEA_REMOTE_ADDR_VAR=HTTP_X_FORWARDED_FOR
+      - KALLITHEA_URL_SCHEME_VAR=HTTP_X_FORWARDED_PROTO
+      - KALLITHEA_REPOSORT_IDX=5
+      - KALLITHEA_REPOSORT_ORDER=desc
+      - KALLITHEA_FIX_PERMISSION=TRUE
+      - KALLITHEA_FIX_REPOS_PERMISSION=FALSE
+      - KALLITHEA_CRON_INDEXING=TRUE
+#      - KALLITHEA_DB_MIGRATION=TRUE
+
+networks:
+  composes-frontend:
+    external: true
