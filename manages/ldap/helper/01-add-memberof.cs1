@@ -1,0 +1,13 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Lestaly.General@0.114.0
+using Lestaly;
+using Lestaly.Cx;
+
+return await Paved.ProceedAsync(async () =>
+{
+    var composeFile = ThisSource.RelativeFile("../compose.yml");
+    await "docker".args(
+        "compose", "--file", composeFile, "exec", "ldap",
+        "ldapadd", "-Q", "-Y", "EXTERNAL", "-H", "ldapi:///", "-f", "/ldifs/memberof.ldif"
+    );
+});
