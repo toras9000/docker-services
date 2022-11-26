@@ -1,0 +1,36 @@
+name: docker-services-dnsmasq
+
+services:
+  app:
+    image: my/dnsmasq
+    build:
+      context: ./build
+      x-bake:
+        tags:
+          - registry.myserver.home/my/dnsmasq:latest
+        platforms:
+          - linux/amd64
+          - linux/arm64
+          - linux/arm/v7
+        pull: true
+    command: dnsmasq --keep-in-foreground --conf-file=/work/configs/dnsmasq.conf
+    restart: unless-stopped
+    ports:
+      - "192.168.1.10:53:53/tcp"
+      - "192.168.1.10:53:53/udp"
+    volumes:
+      - type: bind
+        source: ./assets/configs
+        target: /work/configs
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./assets/names
+        target: /work/names
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      - TZ=Asia/Tokyo
+
