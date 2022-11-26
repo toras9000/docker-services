@@ -1,0 +1,5 @@
+﻿volumes
+.vscode
+omnisharp.json
+manages/forgejo/helper/.auth-token
+manages/step-ca/assets/step/db
