@@ -1,0 +1,4 @@
+﻿volumes
+.vscode
+omnisharp.json
+manages/forgejo/helper/.auth-token
