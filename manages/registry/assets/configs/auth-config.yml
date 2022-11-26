@@ -1,0 +1,64 @@
+# A simple example. See reference.yml for explanation for explanation of all options.
+#
+#  auth:
+#    token:
+#      realm: "https://127.0.0.1:5001/auth"
+#      service: "Docker registry"
+#      issuer: "Acme auth server"
+#      rootcertbundle: "/path/to/server.pem"
+
+server:
+  addr: ":5001"
+
+token:
+  issuer: "Docker registry auth server"  # Must match issuer in the Registry config.
+  expiration: 900
+  certificate: "/assets/certs/token-sign.crt"
+  key: "/assets/certs/token-sign.key"
+
+users:
+  # Password is specified as a BCrypt hash. Use `htpasswd -nB USERNAME` to generate.
+  "admin":
+    password: "$2y$05$LO.vzwpWC5LZGqThvEfznu8qzb5SGqvBSWY1J3yZ4AxtMRZ3kN5jC"
+  "webui":
+    password: "$2y$05$DEtsi5nqv5uNfUZIFPbqmuAqAqynopcLxgltFx88Stp5wZycnYNFG"    # webui123
+  "user":
+    password: "$2y$05$oleCgTd3075E7JW.Z1ANQOlQzksScoTMNRNHk2SUhFxSyS8T1Xbfm"
+  "": {}  # Allow anonymous (no "docker login") access.
+
+
+ldap_auth:
+  addr: ldap.myserver.home:636
+  tls: always
+  insecure_tls_skip_verify: false
+  ca_certificate: /certs/ca.crt
+  bind_dn:
+  bind_password_file:
+  base: ou=persons,ou=accounts,dc=myserver,o=home
+  #filter: (&(uid=${account})(objectClass=inetOrgPerson)(memberOf=cn=Docker Auth,ou=groups,dc=myserver,o=home))
+  filter: (&(uid=${account})(objectClass=inetOrgPerson))
+  labels:
+    title:
+      attribute: title
+    groups:
+      attribute: memberOf
+      parse_cn: false
+      lower_case: true
+
+acl:
+  - match: {account: "admin"}
+    actions: ["*"]
+    comment: "Admin has full access to everything."
+  - match: {account: "webui"}
+    actions: ["*"]
+    comment: "webui has full access to everything."
+  - match: {account: "/.+/", name: "${account}/*"}
+    actions: ["*"]
+    comment: "Logged in users have full access to images that are in their 'namespace'"
+  - match: {account: "", type: "registry", name: "catalog"}
+    actions: ["*"]
+    comment: "Anonymous users can query the catalog."
+  - match: {account: ""}
+    actions: ["pull"]
+    comment: "Anonymous users can pull."
+  # Access is denied by default.

@@ -1,0 +1,78 @@
+services:
+  app:
+    image: registry:2
+    restart: unless-stopped
+    command: serve /assets/configs/registry-config.yml
+    networks:
+      composes-frontend:
+        aliases:
+          - registry-app-container
+    volumes:
+      - type: bind
+        source: ./assets
+        target: /assets
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: registry-repos
+        target: /var/lib/registry
+    environment:
+      - TZ=Asia/Tokyo
+
+  auth:
+    image: cesanta/docker_auth:1
+    restart: unless-stopped
+    command: /assets/configs/auth-config.yml
+    networks:
+      composes-frontend:
+        aliases:
+          - registry-auth-container
+    volumes:
+      - type: bind
+        source: ./assets
+        target: /assets
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../proxy/assets/certs/ca
+        target: /certs
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      - TZ=Asia/Tokyo
+
+  ui:
+    image: klausmeyer/docker-registry-browser:1.7
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - registry-ui-container
+    volumes:
+      - type: bind
+        source: ../proxy/assets/certs/ca/ca.crt
+        target: /work/certs/ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      - TZ=Asia/Tokyo
+      - SECRET_KEY_BASE=bf7c7723b4bcdf1e7d42ce46fb3520a74021e828b824c54e51c7213f74ff3404090ccea97d58a16ef12536bb84263e37120830a8bd315f6f5becdbfe0e43de53
+      - DOCKER_REGISTRY_URL=https://registry.myserver.home
+      - NO_SSL_VERIFICATION=false
+      - CA_FILE=/work/certs/ca.crt
+      - TOKEN_AUTH_USER=webui
+      - TOKEN_AUTH_PASSWORD=webui123
+      - ENABLE_COLLAPSE_NAMESPACES=false
+      - ENABLE_DELETE_IMAGES=true
+
+volumes:
+  registry-repos:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
