@@ -1,0 +1,32 @@
+services:
+  app:
+    image: toras9000/excalidraw-mp:0.17.3
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - excalidraw-app-container
+    healthcheck:
+      test: curl -f http://localhost:80 || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    environment:
+      - TZ=Asia/Tokyo
+      - VITE_APP_WS_SERVER_URL=https://excalidraw-room.toras.home/
+
+  collabo:
+    image: toras9000/excalidraw-room-mp:2023.12.15
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - excalidraw-room-container
+    environment:
+      - TZ=Asia/Tokyo
+
+networks:
+  composes-frontend:
+    external: true

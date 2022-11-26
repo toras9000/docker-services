@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - nextcloud-db-container
+    healthcheck:
+      test: pg_isready --quiet --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - ../../volumes/nextcloud/db:/var/lib/postgresql/data
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_USER=nextcloud_user
+      - POSTGRES_PASSWORD=nextcloud_secret
+      - POSTGRES_DB=nextcloud_store
+
+  app:
+    image: nextcloud:29
+    command: sh /work/startup/run.sh
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - nextcloud-app-container
+    healthcheck:
+      test: curl -f http://localhost:80/login || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - ./assets:/work
+      - ../../volumes/nextcloud/app/html:/var/www/html
+    environment:
+      - TZ=Asia/Tokyo
+      - NEXTCLOUD_UPDATE=1
+      - POSTGRES_HOST=nextcloud-db-container
+      - POSTGRES_USER=nextcloud_user
+      - POSTGRES_PASSWORD=nextcloud_secret
+      - POSTGRES_DB=nextcloud_store
+      - TRUSTED_PROXIES=172.31.0.0/16
+      - NEXTCLOUD_TRUSTED_DOMAINS=myserver.home nextcloud.toras.home
+
+networks:
+  composes-frontend:
+    external: true

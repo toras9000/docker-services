@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - bagetter-db-container
+    healthcheck:
+      test: pg_isready --quiet --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - ../../volumes/bagetter/db:/var/lib/postgresql/data
+    environment:
+      - TZ=Asia/Tokyo
+      - PGDATA=/var/lib/postgresql/data/bagetter-data
+      - POSTGRES_USER=bagetter_user
+      - POSTGRES_PASSWORD=bagetter_secret
+      - POSTGRES_DB=bagetter_store
+
+  app:
+    image: toras9000/bagetter-mp:1.4.1-patched-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - bagetter-app-container
+    healthcheck:
+      test: wget -q -O - http://localhost:8080/health || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - ../../volumes/bagetter/app/data:/data
+      - ../../volumes/bagetter/app/keys:/root/.aspnet/DataProtection-Keys
+    environment:
+      - TZ=Asia/Tokyo
+      - ApiKey=NUGET-SERVER-API-KEY
+      - Storage__Type=FileSystem
+      - Storage__Path=/data
+      - Database__Type=PostgreSql
+      - Database__ConnectionString=Host=bagetter-db-container;Port=5432;Database=bagetter_store;User ID=bagetter_user;Password=bagetter_secret;
+      - Search__Type=Database
+
+networks:
+  composes-frontend:
+    external: true

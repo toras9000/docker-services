@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - keycloak-db-container
+    healthcheck:
+      test: pg_isready --quiet --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - ../../volumes/keycloak/db:/var/lib/postgresql/data
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_USER=keycloak_user
+      - POSTGRES_PASSWORD=keycloak_secret
+      - POSTGRES_DB=keycloak_store
+
+  app:
+    image: toras9000/bitnami-keycloak-fix-ja:24.0.4
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - keycloak-app-container
+    healthcheck:
+      test: curl -f http://localhost:8080 || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - ../proxy/assets/certs/ca/ca.crt:/opt/bitnami/keycloak/conf/truststores/ca.pem
+    environment:
+      - TZ=Asia/Tokyo
+      - KEYCLOAK_ADMIN=keycloak-admin
+      - KEYCLOAK_ADMIN_PASSWORD=keycloak-admin-secret-pass
+      - KEYCLOAK_HTTP_PORT=8080
+      - KEYCLOAK_PROXY=edge
+      - KEYCLOAK_PRODUCTION=true
+      - KEYCLOAK_DATABASE_VENDOR=postgresql
+      - KEYCLOAK_DATABASE_HOST=keycloak-db-container
+      - KEYCLOAK_DATABASE_PORT=5432
+      - KEYCLOAK_DATABASE_USER=keycloak_user
+      - KEYCLOAK_DATABASE_PASSWORD=keycloak_secret
+      - KEYCLOAK_DATABASE_NAME=keycloak_store
+
+networks:
+  composes-frontend:
+    external: true

@@ -1,0 +1,40 @@
+# A simple example. See reference.yml for explanation for explanation of all options.
+#
+#  auth:
+#    token:
+#      realm: "https://127.0.0.1:5001/auth"
+#      service: "Docker registry"
+#      issuer: "Acme auth server"
+#      rootcertbundle: "/path/to/server.pem"
+
+server:
+  addr: ":5001"
+
+token:
+  issuer: "Docker registry auth server"  # Must match issuer in the Registry config.
+  expiration: 900
+  certificate: "/assets/certs/token-sign.crt"
+  key: "/assets/certs/token-sign.key"
+
+users:
+  # Password is specified as a BCrypt hash. Use `htpasswd -nB USERNAME` to generate.
+  "admin":
+    password: "$2y$05$LO.vzwpWC5LZGqThvEfznu8qzb5SGqvBSWY1J3yZ4AxtMRZ3kN5jC"
+  "user":
+    password: "$2y$05$oleCgTd3075E7JW.Z1ANQOlQzksScoTMNRNHk2SUhFxSyS8T1Xbfm"
+  "": {}  # Allow anonymous (no "docker login") access.
+
+acl:
+  - match: {account: "admin"}
+    actions: ["*"]
+    comment: "Admin has full access to everything."
+  - match: {account: "/.+/", name: "${account}/*"}
+    actions: ["*"]
+    comment: "Logged in users have full access to images that are in their 'namespace'"
+  - match: {account: "", type: "registry", name: "catalog"}
+    actions: ["*"]
+    comment: "Anonymous users can query the catalog."
+  - match: {account: ""}
+    actions: ["pull"]
+    comment: "Anonymous users can pull."
+  # Access is denied by default.
