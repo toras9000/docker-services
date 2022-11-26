@@ -1,0 +1,57 @@
+services:
+  analyzer:
+    image: allinurl/goaccess
+    entrypoint: ""
+    command: sh -c "
+          (mv /work/logs/access.log /work/logs/access-$(date +'%Y%m%d%H%M%S').log 2> /dev/null || true)
+       && touch /work/logs/access.log
+       && echo 'start goaccess'
+       && exec goaccess '/work/logs/access.log' --config-file=/work/configs/goaccess.conf --output=/var/www/goaccess/index.html --real-time-html --ws-url=wss://goaccess-ws.myserver.home:443
+      "
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - goaccess-analyzer-container
+    volumes:
+      - ./assets/goaccess:/work/configs
+      - ../../volumes/goaccess/reports:/var/www/goaccess
+      - logs-vol:/work/logs
+    environment:
+      - TZ=Asia/Tokyo
+
+  proxy:
+    image: my/nginx
+    build:
+      context: ./build
+      args:
+        - NGINX_VERSION=1.27
+    pull_policy: never
+    command: sh -c "exec find /work/certs/ca -type f -print0 | xargs -0 chmod 444 && exec nginx -g 'daemon off;'"
+    restart: unless-stopped
+    depends_on:
+      analyzer:
+        condition: service_started
+    networks:
+      composes-frontend:
+    ports:
+      - "80:80"
+      - "443:443"
+      - "389:389"
+      - "636:636"
+    volumes:
+      - ./assets/configs/partial:/work/configs/partial:ro
+      - ./assets/configs/server:/etc/nginx/conf.d:ro
+      - ./assets/configs/extra:/etc/nginx/conf_extra.d:ro
+      - ./assets/certs:/work/certs
+      - ../../volumes/goaccess/reports:/work/reports
+      - logs-vol:/work/logs
+    environment:
+      - TZ=Asia/Tokyo
+
+volumes:
+  logs-vol:
+
+networks:
+  composes-frontend:
+    external: true

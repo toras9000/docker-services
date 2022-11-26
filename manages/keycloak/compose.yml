@@ -1,0 +1,70 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - keycloak-db-container
+    healthcheck:
+      test: pg_isready --quiet --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - ../../volumes/keycloak/db:/var/lib/postgresql/data
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_USER=keycloak_user
+      - POSTGRES_PASSWORD=keycloak_secret
+      - POSTGRES_DB=keycloak_store
+
+  app:
+    image: my/keycloak
+    pull_policy: never
+    build:
+      context: ./build
+      args:
+        - KEYCLOAK_VERSION=24.0.5
+        - KC_HEALTH_ENABLED=true
+        - KC_METRICS_ENABLED=true
+        - KC_DB=postgres
+        - KC_FEATURES=docker
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - keycloak-app-container
+    healthcheck:
+      test: curl -f http://localhost:8080 || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - ../proxy/assets/certs/ca/ca.crt:/opt/keycloak/conf/truststores/ca.pem
+    environment:
+      - TZ=Asia/Tokyo
+      - KEYCLOAK_ADMIN=keycloak-admin
+      - KEYCLOAK_ADMIN_PASSWORD=keycloak-admin-secret-pass
+      - KC_DB=postgres
+      - KC_DB_USERNAME=keycloak_user
+      - KC_DB_PASSWORD=keycloak_secret
+      - KC_DB_URL_HOST=keycloak-db-container
+      - KC_DB_URL_PORT=5432
+      - KC_DB_URL_DATABASE=keycloak_store
+      - KC_HOSTNAME=keycloak.myserver.home
+      - KC_HTTP_ENABLED=true
+      - KC_HTTP_PORT=8080
+      - KC_PROXY_HEADERS=xforwarded
+
+networks:
+  composes-frontend:
+    external: true

@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - kallithea-db-container
+    healthcheck:
+      test: pg_isready --quiet --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - ../../volumes/kallithea/db:/var/lib/postgresql/data
+    environment:
+      - TZ=Asia/Tokyo
+      - PGDATA=/var/lib/postgresql/data/kallithea-data
+      - POSTGRES_USER=kallithea_user
+      - POSTGRES_PASSWORD=kallithea_secret
+      - POSTGRES_DB=kallithea_store
+
+  app:
+    image: toras9000/kallithea-mp:0.7.0-patched2
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - kallithea-app-container
+    healthcheck:
+      test: curl -f http://localhost:5000/_admin/login || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    ports:
+      - "2222:22"
+    volumes:
+      - ../../volumes/kallithea/app/config:/kallithea/config
+      - ../../volumes/kallithea/app/repos:/kallithea/repos
+      - ../../volumes/kallithea/app/host_keys:/kallithea/host_keys
+      - ../../volumes/kallithea/app/ssh:/home/kallithea/.ssh
+    environment:
+      - TZ=JST-9
+      - KALLITHEA_EXTERNAL_DB=postgres://kallithea_user:kallithea_secret@kallithea-db-container/kallithea_store
+      - KALLITHEA_ADMIN_USER=admin
+      - KALLITHEA_ADMIN_PASS=admin123
+      - KALLITHEA_ADMIN_MAIL=admin@example.com
+      - KALLITHEA_LOCALE=ja_JP.UTF-8
+      - KALLITHEA_REMOTE_ADDR_VAR=HTTP_X_FORWARDED_FOR
+      - KALLITHEA_URL_SCHEME_VAR=HTTP_X_FORWARDED_PROTO
+      - KALLITHEA_REPOSORT_IDX=5
+      - KALLITHEA_REPOSORT_ORDER=desc
+      - KALLITHEA_FIX_PERMISSION=TRUE
+      - KALLITHEA_FIX_REPOS_PERMISSION=FALSE
+      - KALLITHEA_CRON_INDEXING=FALSE
+      - KALLITHEA_DEFAULT_REPO_GIT=TRUE
+      - KALLITHEA_EXTRA_FIELD=TRUE
+      - KALLITHEA_EXTERNAL_SSH_PORT=2222
+      - KALLITHEA_LDAP_ENABLE=TRUE
+      - KALLITHEA_LDAP_HOST=ldap.myserver.home
+      - KALLITHEA_LDAP_BASE_DN=ou=persons,ou=accounts,dc=myserver,o=home
+      - KALLITHEA_LDAP_TLS_KIND=PLAIN
+      - KALLITHEA_LDAP_TLS_CERT=NEVER
+      - KALLITHEA_LDAP_SCOPE=ONELEVEL
+      - KALLITHEA_LDAP_ATTR_LOGIN=uid
+      - KALLITHEA_LDAP_ATTR_FIRSTNAME=givenName
+      - KALLITHEA_LDAP_ATTR_LASTNAME=sn
+      - KALLITHEA_LDAP_ATTR_EMAIL=mail
+#      - KALLITHEA_DB_MIGRATION=TRUE
+
+networks:
+  composes-frontend:
+    external: true
