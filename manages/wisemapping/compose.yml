@@ -1,0 +1,57 @@
+name: docker-services-wisemapping
+
+
+volumes:
+  wisemapping-db-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - wisemapping-db-container
+    healthcheck:
+      test: pg_isready --quiet --host localhost --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: volume
+        source: wisemapping-db-data
+        target: /var/lib/postgresql
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_USER=wisemapping_user
+      - POSTGRES_PASSWORD=wisemapping_secret
+      - POSTGRES_DB=wisemapping_store
+
+  app:
+    image: wisemapping/wisemapping
+    restart: unless-stopped
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - wisemapping-app-container
+    volumes:
+      - type: bind
+        source: ./assets/application.yml
+        target: /app/config/application.yml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./assets/default.conf
+        target: /etc/nginx/http.d/default.conf
+        read_only: true
+        bind:
+          create_host_path: false
