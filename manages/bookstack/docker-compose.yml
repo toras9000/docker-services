@@ -1,0 +1,70 @@
+services:
+  db:
+    image: mysql:8
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - bookstack-db-container
+    healthcheck:
+      test: mysqladmin ping --host=localhost --user=$${MYSQL_USER} || exit 1
+      start_period: 60s
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    volumes:
+      - ../../volumes/bookstack/db:/var/lib/mysql
+    environment:
+      - TZ=Asia/Tokyo
+      - MYSQL_ROOT_PASSWORD=bookstack_rootpass
+      - MYSQL_DATABASE=bookstack_store
+      - MYSQL_USER=bookstack_user
+      - MYSQL_PASSWORD=bookstack_pass
+
+  app:
+    image: lscr.io/linuxserver/bookstack:version-v24.02.2
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - bookstack-app-container
+    healthcheck:
+      test: curl -f http://localhost || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ../../volumes/bookstack/app:/config
+      - ./assets/init:/custom-cont-init.d
+      - ./assets/template:/assets/template
+    environment:
+      - TZ=Asia/Tokyo
+      - PUID=1000
+      - PGID=1000
+      - APP_URL=https://bookstack.myserver.home
+      - DB_HOST=bookstack-db-container
+      - DB_DATABASE=bookstack_store
+      - DB_USER=bookstack_user
+      - DB_PASS=bookstack_pass
+      - APP_THEME=my-theme
+      - API_REQUESTS_PER_MIN=180
+      - AUTH_METHOD=standard
+      - LDAP_SERVER=ldap.myserver.home:389
+      - LDAP_BASE_DN="ou=accounts,dc=myserver,o=home"
+      - LDAP_DN=false
+      - LDAP_PASS=false
+      - LDAP_USER_FILTER
+      - LDAP_VERSION=3
+      - LDAP_ID_ATTRIBUTE=uid
+      - LDAP_EMAIL_ATTRIBUTE=mail
+      - LDAP_DISPLAY_NAME_ATTRIBUTE=cn
+      - LDAP_START_TLS=false
+
+networks:
+  composes-frontend:
+    external: true

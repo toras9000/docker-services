@@ -1,0 +1,2 @@
+[registry."registry.toras.home"]
+  ca=["../../proxy/assets/certs/ca/toras-ca.crt"]

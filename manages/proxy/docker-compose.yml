@@ -1,0 +1,26 @@
+services:
+  proxy:
+    image: my/nginx:1.25
+    build:
+      context: ./build
+    pull_policy: never
+    command: sh -c "exec find /work/certs/ca -type f -print0 | xargs -0 chmod 444 && exec nginx -g 'daemon off;'"
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+    ports:
+      - "80:80"
+      - "443:443"
+      - "389:389"
+      - "636:636"
+    volumes:
+      - ./assets/configs/partial:/work/configs/partial:ro
+      - ./assets/configs/server:/etc/nginx/conf.d:ro
+      - ./assets/configs/extra:/etc/nginx/conf_extra.d:ro
+      - ./assets/certs:/work/certs
+    environment:
+      - TZ=Asia/Tokyo
+
+networks:
+  composes-frontend:
+    external: true

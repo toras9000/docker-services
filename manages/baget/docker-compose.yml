@@ -1,0 +1,27 @@
+services:
+  app:
+    image: toras9000/baget-mp:0.4.0-preview2-patched
+    restart: always
+    networks:
+      composes-frontend:
+        aliases:
+          - baget-app-container
+    healthcheck:
+      test: curl -f http://localhost || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ../../volumes/baget/app/packages:/app/BaGet/packages
+      - ../../volumes/baget/app/symbols:/app/BaGet/symbols
+      - ../../volumes/baget/app/config:/app/config
+      - ../../volumes/baget/app/database:/app/database
+    environment:
+      - TZ=Asia/Tokyo
+      - INIT_DB_TYPE=Sqlite
+      - INIT_DB_CONN_STR=Data Source=/app/database/baget.db
+
+networks:
+  composes-frontend:
+    external: true
