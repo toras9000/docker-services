@@ -1,0 +1,100 @@
+name: docker-services-forgejo
+
+volumes:
+  forgejo-db-data:
+    external: true
+  forgejo-app-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - forgejo-db-container
+    healthcheck:
+      test: pg_isready --quiet --host localhost --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: volume
+        source: forgejo-db-data
+        target: /var/lib/postgresql
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_USER=forgejo_user
+      - POSTGRES_PASSWORD=forgejo_secret
+      - POSTGRES_DB=forgejo_store
+
+  app:
+    image: codeberg.org/forgejo/forgejo:14
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - forgejo-app-container
+      composes-frontend:
+        aliases:
+          - forgejo-app-container
+    command: sh -c "
+          cat /work/certs/ca/root_ca.crt >> /etc/ssl/certs/ca-certificates.crt
+       && /usr/bin/s6-svscan /etc/s6
+      "
+    healthcheck:
+      test: curl -f -s http://localhost:3000 || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    ports:
+      - "2022:22"
+    volumes:
+      - type: bind
+        source: ../step-ca/assets/step/certs
+        target: /work/certs/ca
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: forgejo-app-data
+        target: /data
+    environment:
+      - TZ=JST-9
+      - USER_UID=1000
+      - USER_GID=1000
+      - FORGEJO__database__DB_TYPE=postgres
+      - FORGEJO__database__HOST=forgejo-db-container:5432
+      - FORGEJO__database__USER=forgejo_user
+      - FORGEJO__database__PASSWD=forgejo_secret
+      - FORGEJO__database__NAME=forgejo_store
+      - FORGEJO__cron_0x2E_update_checker__ENABLED=false
+      - FORGEJO__server__DOMAIN=forgejo.myserver.home
+      - FORGEJO__server__ROOT_URL=https://forgejo.myserver.home
+      - FORGEJO__server__SSH_PORT=2022
+      - FORGEJO__admin__USER_DISABLED_FEATURES=deletion
+      - FORGEJO__admin__EXTERNAL_USER_DISABLE_FEATURES=deletion
+      - FORGEJO__service__DISABLE_REGISTRATION=false
+      - FORGEJO__service__REQUIRE_SIGNIN_VIEW=false
+      - FORGEJO__service_0x2E_explore__REQUIRE_SIGNIN_VIEW=false
+      - FORGEJO__openid__ENABLE_OPENID_SIGNIN=false
+      - FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION=true
+      - FORGEJO__oauth2_client__USERNAME=email
+      - FORGEJO__oauth2_client__ACCOUNT_LINKING=login
+      - FORGEJO__repository__ACCESS_CONTROL_ALLOW_ORIGIN=https://*.myserver.home http://*.myserver.home
+      - FORGEJO__migrations__ALLOW_LOCALNETWORKS=true
+      - FORGEJO__quota__ENABLED=true
+      - FORGEJO__quota__DEFAULT_GROUPS=default-quota
+      - FORGEJO__quota_0x2E_default__TOTAL=32G
