@@ -1,0 +1,29 @@
+name: docker-services-upsnap
+
+volumes:
+  upsnap-app-data:
+    external: true
+
+services:
+  app:
+    image: seriousm4x/upsnap:5
+    restart: unless-stopped
+    # If Docker Desktop, v4.34 or later and host networking settings must be enabled.
+    network_mode: host
+    entrypoint: sh -c "
+          cat /work/certs/ca/root_ca.crt >> /etc/ssl/certs/ca-certificates.crt
+       && ./upsnap serve --http 0.0.0.0:8090
+      "
+    volumes:
+      - type: bind
+        source: ../step-ca/assets/step/certs
+        target: /work/certs/ca
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: upsnap-app-data
+        target: /app/pb_data
+    environment:
+      - TZ=Asia/Tokyo
+      - UPSNAP_INTERVAL=*/10 * * * * *
