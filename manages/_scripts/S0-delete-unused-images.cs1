@@ -1,0 +1,29 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.124.0
+#:property PublishAot=false
+using System.Text.Json;
+using Lestaly;
+using Lestaly.Cx;
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    Console.WriteLine($"Get image list");
+    var imagesResult = await "docker".args("image", "ls", "--format", "json").silent().result().success().output();
+    var imageList = imagesResult.AsTextLines().DropWhite()
+        .Select(line => JsonSerializer.Deserialize<DockerImageEntry>(line))
+        .Where(i => i != null).Select(i => i!)
+        .ToArray();
+
+    Console.WriteLine($"Delete unused images");
+    foreach (var image in imageList)
+    {
+        if (image.Containers != "0") continue;
+        var imageName = $"{image.Repository}:{image.Tag}";
+        Console.WriteLine($"Image {imageName}");
+        await "docker".args("image", "rm", imageName).silent().result().success();
+        Console.WriteLine($".. Deleted");
+    }
+});
+
+record DockerImageEntry(string Containers, string CreatedAt, string CreatedSince, string Digest, string ID, string Repository, string SharedSize, string Size, string Tag, string UniqueSize);

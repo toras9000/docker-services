@@ -1,0 +1,38 @@
+name: docker-services-ldap
+
+volumes:
+  openldap-app-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  ldap:
+    image: bitnamilegacy/openldap:2.6
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - openldap-app-container
+    volumes:
+      - type: bind
+        source: ./assets/ldifs
+        target: /ldifs
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: openldap-app-data
+        target: /bitnami/openldap
+    environment:
+      - TZ=Asia/Tokyo
+      - LDAP_PORT_NUMBER=1389
+      - LDAP_ROOT=dc=myserver,o=home
+      - LDAP_ADMIN_USERNAME=admin
+      - LDAP_ADMIN_PASSWORD=admin-pass
+      - LDAP_CONFIG_ADMIN_ENABLED=yes
+      - LDAP_CONFIG_ADMIN_USERNAME=config-admin
+      - LDAP_CONFIG_ADMIN_PASSWORD=config-admin-pass
+      - LDAP_CUSTOM_LDIF_DIR=/ldifs
