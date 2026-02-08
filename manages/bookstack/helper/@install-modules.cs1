@@ -1,0 +1,29 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Lestaly@0.136.0
+using Lestaly;
+using Lestaly.Cx;
+
+var settings = new
+{
+    Modules = new Uri[]
+    {
+        new("https://github.com/toras9000/bookstack-pseudo-permalink/archive/refs/heads/v26.05.zip"),
+        new("https://github.com/toras9000/bookstack-markdown-extensions/archive/refs/heads/v26.05.zip"),
+        new("https://github.com/toras9000/bookstack-header-links/archive/refs/heads/v26.05.zip"),
+        new("https://github.com/toras9000/bookstack-home-list-custom/archive/refs/heads/v26.05.zip"),
+        new("https://github.com/toras9000/bookstack-default-chapter-open/archive/refs/heads/v26.05.zip"),
+    },
+};
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    foreach (var module in settings.Modules)
+    {
+        await "docker".args("compose", "--file", ThisSource.RelativeFile("../compose.yml"),
+            "exec",
+                "--workdir", "/app/www",
+            "app",
+                "php", "artisan", "bookstack:install-module", module
+        ).input("yes\nyes\nyes\n2\n").result().success();
+    }
+});

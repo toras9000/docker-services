@@ -1,0 +1,7 @@
+#!/usr/bin/env -S dotnet run --file
+
+public record KeycloakForgejoClient(
+    string ClientID,
+    string ClientSecret,
+    string DiscoverUrl
+);

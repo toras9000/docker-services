@@ -1,0 +1,45 @@
+﻿spring:
+  datasource:
+    url: jdbc:postgresql://wisemapping-db-container:5432/wisemapping_store
+    username: wisemapping_user
+    password: wisemapping_secret
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      platform: postgresql
+  ldap:
+    urls: ldap://ldap.myserver.home:389
+    base: ou=accounts,dc=myserver,o=home
+    username: ""                         # Manager/bind DN (empty for anonymous)
+    password: ""                         # Manager/bind password
+
+app:
+  site:
+    ui-base-url: https://wisemapping.myserver.home
+    api-base-url: https://wisemapping.myserver.home
+  chatgpt:
+    ai-base-url: https://ai.myserver.home
+  registration:
+    enabled: false
+    email-confirmation-enabled: false
+  ldap:
+    enabled: true
+    # User authentication
+    user-dn-patterns: uid={0},ou=persons  # Pattern for user DN ({0} = username)
+    user-search-base: ou=persons          # User search base (relative to spring.ldap.base)
+    user-search-filter: (mail={0})         # LDAP filter ({0} = username)
+    # Attribute mappings (critical for user synchronization)
+    email-attribute: mail                # Email attribute (primary user identifier)
+    firstname-attribute: givenName       # First name attribute
+    lastname-attribute: sn               # Last name attribute (surname)
+    # Advanced settings
+    password-compare: true               # Use bind auth (false) or password comparison (true)
+    pooled: true                         # Enable connection pooling
+    connect-timeout: 5000                # Connection timeout (ms)
+    read-timeout: 10000                  # Read timeout (ms)
