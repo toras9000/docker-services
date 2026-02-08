@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://wisemapping-db-container:5432/wisemapping_store
+    username: wisemapping_user
+    password: wisemapping_secret
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      platform: postgresql
+
+app:
+  site:
+    ui-base-url: https://wisemapping.myserver.home
+    api-base-url: https://wisemapping.myserver.home

@@ -1,0 +1,16 @@
+#!/usr/bin/env dotnet-script
+#:package Lestaly.General@0.119.0
+using Lestaly;
+using Lestaly.Cx;
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    await "dotnet".args("run", "--file", ThisSource.RelativeFile("../ldap/helper/01-add-memberof.cs1"), "--", "--no-pause").echo().result().success();
+    await "dotnet".args("run", "--file", ThisSource.RelativeFile("../ldap/helper/02-config-replace-access.cs1"), "--", "--no-pause").echo().result().success();
+    await "dotnet".args("run", "--file", ThisSource.RelativeFile("../keycloak/setup-federation-ldap.cs1"), "--", "--no-pause").echo().result().success();
+    await "dotnet".args("run", "--file", ThisSource.RelativeFile("../keycloak/setup-client-vaultwarden.cs1"), "--", "--no-pause").echo().result().success();
+    await "dotnet".args("run", "--file", ThisSource.RelativeFile("../keycloak/setup-client-bookstack.cs1"), "--", "--no-pause").echo().result().success();
+    await "dotnet".args("run", "--file", ThisSource.RelativeFile("../forgejo/helper/01-initial-setup.cs1"), "--", "--no-pause").echo().result().success();
+    await "dotnet".args("run", "--file", ThisSource.RelativeFile("../forgejo/helper/02-add-auth-ldap.cs1"), "--", "--no-pause").echo().result().success();
+    await "dotnet".args("run", "--file", ThisSource.RelativeFile("../forgejo-runner/helper/setup-gobal-runner.cs1"), "--", "--no-pause").echo().result().success();
+});

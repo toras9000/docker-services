@@ -1,0 +1,15 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Lestaly.General@0.119.0
+#:package Lestaly.Ldap@0.104.0
+using Lestaly;
+
+while (true)
+{
+    Console.Write("Input text\n>");
+    var input = Console.ReadLine();
+    if (string.IsNullOrEmpty(input)) break;
+
+    var value = LdapExtensions.MakePasswordHash.SSHA256(input);
+    Console.WriteLine(value);
+    Console.WriteLine();
+}

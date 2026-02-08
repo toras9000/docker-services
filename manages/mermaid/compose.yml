@@ -1,0 +1,42 @@
+name: docker-services-mermaid
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  ink:
+    image: ghcr.io/jihchi/mermaid.ink
+    restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+    networks:
+      composes-frontend:
+        aliases:
+          - mermaid-ink-container
+    #security_opt:
+    #  - seccomp:./assets/seccomp/chrome.json
+
+  editor:
+    image: my/mermaid
+    pull_policy: never
+    build:
+      context: ./build
+      args:
+        - MERMAID_RENDERER_URL=https://mermaid-ink.myserver.home
+        - MERMAID_KROKI_RENDERER_URL=
+        - MERMAID_ANALYTICS_URL=
+        - MERMAID_DOMAIN=
+        - MERMAID_IS_ENABLED_MERMAID_CHART_LINKS=
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - mermaid-editor-container
+    healthcheck:
+      test: curl -f -s http://localhost:8080 || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3

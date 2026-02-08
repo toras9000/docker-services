@@ -1,0 +1,30 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Lestaly.General@0.119.0
+#:package RefFile@0.2.0
+using Lestaly;
+using Lestaly.Cx;
+[assembly: RefFile("../_scripts/.target-composes.cs1")]
+
+return await Paved.ProceedAsync(noPause: true, async () =>
+{
+    Console.WriteLine("Create server cert");
+    var manage = new ManageServices(ThisSource.Directory("../_scripts"));
+    string[] hosts =
+    [
+        "myserver.home",
+        .. manage.GetContainers().SelectMany(s => s.Hosts ?? [])
+    ];
+    var composeFile = ThisSource.RelativeFile("compose.yml");
+    await "docker".args([
+        "compose",
+            "--file", composeFile,
+        "exec", "app", "certbot", "certonly",
+            "--non-interactive",
+            "--standalone",
+            "--server", "https://ca.myserver.home/acme/acme/directory",
+            "--preferred-challenges", "http",
+            "--cert-name", "myserver.home",
+            .. hosts.SelectMany(h => new[]{ "--domains", h, })
+    ]).result().success();
+});
+
