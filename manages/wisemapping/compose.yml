@@ -1,0 +1,62 @@
+name: docker-services-wisemapping
+
+
+volumes:
+  wisemapping-db-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - wisemapping-db-container
+    healthcheck:
+      test: pg_isready --quiet --host localhost --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: volume
+        source: wisemapping-db-data
+        target: /var/lib/postgresql
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_USER=wisemapping_user
+      - POSTGRES_PASSWORD=wisemapping_secret
+      - POSTGRES_DB=wisemapping_store
+
+  app:
+    image: wisemapping/wisemapping
+    restart: unless-stopped
+    command: sh -c "
+          cat /work/certs/ca/root_ca.crt >> /etc/ssl/certs/ca-certificates.crt
+       && keytool -importcert -cacerts -alias myserver -storepass changeit -noprompt -file /work/certs/ca/root_ca.crt
+       && /usr/bin/supervisord -c /etc/supervisord.conf
+      "
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - wisemapping-app-container
+    volumes:
+      - type: bind
+        source: ./assets/application.yml
+        target: /app/config/application.yml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../step-ca/assets/step/certs
+        target: /work/certs/ca
+        read_only: true
+        bind:
+          create_host_path: false

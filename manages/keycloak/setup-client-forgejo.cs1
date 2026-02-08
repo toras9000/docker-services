@@ -1,0 +1,79 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Schick.Keycloak.RestApiClient@26.5.3
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:package RefFile@0.2.0
+#:property PublishAot=false
+using FS.Keycloak.RestApiClient.Api;
+using FS.Keycloak.RestApiClient.Authentication.ClientFactory;
+using FS.Keycloak.RestApiClient.ClientFactory;
+using FS.Keycloak.RestApiClient.Model;
+using Lestaly;
+[assembly: RefFile(".keylocak-manage.cs1")]
+[assembly: RefFile("../forgejo/helper/.data-types.cs1")]
+
+var settings = new
+{
+    Realm = new RealmRepresentation
+    {
+        Realm = "myserver",
+        Enabled = true,
+    },
+
+    Client = new ClientRepresentation()
+    {
+        Id = "ForgejoClient",
+        RootUrl = "https://forgejo.myserver.home",
+        BaseUrl = "https://forgejo.myserver.home",
+        RedirectUris = ["https://forgejo.myserver.home/*"],
+        StandardFlowEnabled = true,
+    },
+
+    ClientInfoFile = ThisSource.RelativeFile("../forgejo/.oidc.json"),
+};
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    using var signal = new SignalCancellationPeriod();
+
+    var keycloak = new KeycloakService();
+    using var http = AuthenticationHttpClientFactory.Create(keycloak.Credential);
+    using var realmsApi = ApiClientFactory.Create<RealmsAdminApi>(http);
+    using var clientApi = ApiClientFactory.Create<ClientsApi>(http);
+
+    Console.WriteLine($"Setup Realm: {settings.Realm.Realm}");
+    var realm = (await realmsApi.GetAsync(cancellationToken: signal.Token)).FirstOrDefault(r => r.Realm == settings.Realm.Realm);
+    if (realm == null)
+    {
+        await realmsApi.PostAsync(settings.Realm, cancellationToken: signal.Token);
+        realm = await realmsApi.GetAsync(settings.Realm.Realm, cancellationToken: signal.Token);
+        Console.WriteLine(".. Created");
+    }
+    else
+    {
+        Console.WriteLine(".. Already exists");
+    }
+
+    Console.WriteLine($"Setup Client: {settings.Client.Id}");
+    var client = (await clientApi.GetClientsAsync(settings.Realm.Realm, settings.Client.Id, cancellationToken: signal.Token)).FirstOrDefault();
+    if (client == null)
+    {
+        await clientApi.PostClientsAsync(settings.Realm.Realm, settings.Client, cancellationToken: signal.Token);
+        client = (await clientApi.GetClientsAsync(settings.Realm.Realm, settings.Client.Id, cancellationToken: signal.Token)).First();
+        Console.WriteLine(".. Created");
+    }
+    else
+    {
+        Console.WriteLine(".. Already exists");
+    }
+
+    Console.WriteLine("Save client info");
+    var info = new KeycloakForgejoClient(
+        ClientID: client.ClientId,
+        ClientSecret: client.Secret,
+        DiscoverUrl: $"https://keycloak.myserver.home/realms/{settings.Realm.Realm}/.well-known/openid-configuration"
+    );
+    await settings.ClientInfoFile.WritePrettyJsonAsync(info, signal.Token);
+    Console.WriteLine(".. Saved");
+});
+

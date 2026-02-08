@@ -1,0 +1,26 @@
+name: docker-services-it-tools
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  app:
+    image: my/it-tools
+    pull_policy: never
+    build:
+      context: ./build
+      args:
+        - IT_TOOLS_VERSION=07eea0f484c0e4d1224aba51285323ec3c7ee4d3
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - it-tools-app-container
+    healthcheck:
+      test: curl -f -s http://localhost:80 || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3

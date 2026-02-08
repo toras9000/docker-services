@@ -1,0 +1,17 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:package RefFile@0.2.0
+using Lestaly;
+using Lestaly.Cx;
+[assembly: RefFile(".target-composes.cs1")]
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    var manage = new ManageServices(ThisSource.Directory());
+    foreach (var info in manage.GetContainers().Reverse())
+    {
+        Console.WriteLine($">{info.Compose.File.Directory?.Name}");
+        await "docker".args("compose", "--file", info.Compose.File, "down", "--volumes", "--remove-orphans");
+    }
+});

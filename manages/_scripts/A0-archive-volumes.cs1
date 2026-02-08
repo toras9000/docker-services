@@ -1,0 +1,26 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:package RefFile@0.2.0
+using Lestaly;
+using Lestaly.Cx;
+[assembly: RefFile(".target-composes.cs1")]
+
+await "dotnet".args("run", "--file", ThisSource.RelativeFile("C2-stop-composes.cs1"), "--", "--no-pause");
+
+var archiveDir = ThisSource.RelativeDirectory("../../volumes");
+
+Console.WriteLine($"Archive volumes data");
+var manage = new ManageServices(ThisSource.Directory());
+foreach (var name in manage.GetDockerVolumeNames())
+{
+    Console.WriteLine($">{name}");
+    await "docker".args(
+        "run", "--rm", "-i",
+        "--mount", $"type=volume,source={name},target=/volume-data,readonly",
+        "--mount", $"type=bind,source={archiveDir.FullName},target=/arch-data",
+        "--workdir", "/volume-data",
+        "busybox",
+        "tar", "zcf", $"/arch-data/{name}.tgz", "."
+    );
+}

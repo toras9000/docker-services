@@ -1,0 +1,44 @@
+name: docker-services-step-ca-init
+
+#  docker compose -f ./compose-init.yml run --rm init
+
+services:
+  prepare:
+    image: busybox
+    command: chown 1000:1000 -R /home/step
+    volumes:
+      - type: bind
+        source: ./assets/step
+        target: /home/step
+        bind:
+          create_host_path: true
+
+  init:
+    image: smallstep/step-ca:0.29.0
+    depends_on:
+      prepare:
+        condition: service_completed_successfully
+    entrypoint: bash -c "
+        mkdir -p /home/step/secrets
+     && cat /dev/urandom | tr -dc "[:alnum:]" | head -c 40 > /home/step/secrets/password
+     && step ca init 
+            --deployment-type=standalone
+            --name=myserver-sample-ca
+            --dns=ca.myserver.home
+            --dns=step-ca-app-container
+            --provisioner=default
+            --address=0.0.0.0:443
+            --acme
+            --password-file=/home/step/secrets/password
+            --provisioner-password-file=/home/step/secrets/password
+      "
+    tty: true
+    stdin_open: true
+    volumes:
+      - type: bind
+        source: ./assets/step
+        target: /home/step
+        bind:
+          create_host_path: true
+    environment:
+      - TZ=Asia/Tokyo

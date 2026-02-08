@@ -1,0 +1,13 @@
+#!/usr/bin/env -S dotnet run --file 
+#:package Lestaly.General@0.119.0
+using Lestaly;
+
+foreach (var script in ThisSource.Directory().GetFiles("*.cs1"))
+{
+    var source = await script.ReadAllTextAsync();
+    if (source.IsMatch(@"\[\s*assembly\s*:\s*RefFile\s*\(""\.target-composes\.cs1""\s*\)\s*\]"))
+    {
+        script.Touch();
+        Console.WriteLine($"touch: {script.Name}");
+    }
+}

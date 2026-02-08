@@ -1,0 +1,68 @@
+#!/usr/bin/env -S dotnet run --file
+#:package ForgejoApiClient@14.0.0-rev.2
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:property PublishAot=false
+using ForgejoApiClient;
+using ForgejoApiClient.Api;
+using Kokuban;
+using Lestaly;
+
+var settings = new
+{
+    ServiceURL = new Uri("http://forgejo.myserver.home"),
+
+    TokenFile = ThisSource.RelativeFile("./.auth-token"),
+
+    Quota = new
+    {
+        GroupName = "default-quota",
+        Rules = new CreateQuotaRuleOptions[]
+        {
+            new(name: "default-git-limit",          limit:  8 * 1024 * 1024 * 1024L, subjects: ["size:git:all"]),
+            new(name: "default-repos-limit",        limit:  8 * 1024 * 1024 * 1024L, subjects: ["size:repos:all"]),
+            new(name: "default-artifacts-limit",    limit:  2 * 1024 * 1024 * 1024L, subjects: ["size:assets:artifacts"]),
+            new(name: "default-attachments-limit",  limit:  2 * 1024 * 1024 * 1024L, subjects: ["size:assets:attachments:all"]),
+            new(name: "default-packages-limit",     limit: 16 * 1024 * 1024 * 1024L, subjects: ["size:assets:packages:all"]),
+        },
+    },
+};
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    using var signal = new SignalCancellationPeriod();
+    using var outenc = Console.OutputUtf8EncodingPeriod();
+
+    Console.WriteLine("Service URL");
+    Console.WriteLine($"  {Poster.Link[settings.ServiceURL.AbsoluteUri]}");
+    Console.WriteLine();
+
+    Console.WriteLine("Load token");
+    var scrambler = settings.TokenFile.CreateScrambler(context: settings.TokenFile.FullName);
+    var apiToken = (await scrambler.DescrambleTextAsync(signal.Token))?.Trim();
+    if (apiToken.IsWhite())
+    {
+        Console.WriteLine($".. Not preserved.");
+        Console.WriteLine($"Enter API token");
+        Console.Write(">"); apiToken = Console.ReadLine().CancelIfWhite();
+        await scrambler.ScrambleTextAsync(apiToken, cancelToken: signal.Token);
+    }
+
+    Console.WriteLine("Generate API client");
+    using var forgejo = new ForgejoClient(settings.ServiceURL, apiToken);
+
+    Console.WriteLine("Check group exists");
+    try
+    {
+        await forgejo.Admin.GetQuotaGroupAsync(settings.Quota.GroupName, signal.Token);
+        Console.WriteLine(".. Already exists");
+        return;
+    }
+    catch { }
+
+    Console.WriteLine("Create quota group");
+    var options = new CreateQuotaGroupOptions(name: settings.Quota.GroupName, rules: settings.Quota.Rules);
+    await forgejo.Admin.CreateQuotaGroupAsync(options, signal.Token);
+
+    Console.WriteLine(Chalk.Green["Successful"]);
+});

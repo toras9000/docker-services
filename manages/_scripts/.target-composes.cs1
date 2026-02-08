@@ -1,0 +1,117 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Lestaly.General@0.119.0
+using Lestaly;
+
+public record NetworkInfo(string Name, bool Enabled, string Subnet);
+
+public record ComposeInfo(FileInfo File, string[]? UpArgs = default, string[]? Volumes = default);
+public record ServiceEndpoint(string Name, string Url);
+public record ServiceInfo(string Name, bool Enabled, ComposeInfo Compose, ServiceEndpoint[]? Endpoints = default, string[]? Hosts = default);
+
+public class ManageServices(DirectoryInfo baseDir)
+{
+    private IReadOnlyList<NetworkInfo> networks { get; } = new NetworkInfo[]
+    {
+        new("composes-frontend", Enabled: true, "172.31.0.0/16"),
+    };
+
+    private IReadOnlyList<ServiceInfo> containers { get; } = new ServiceInfo[]
+    {
+        new("dnsmasq", Enabled: false,
+            Compose: new(baseDir.RelativeFile("../dnsmasq/compose.yml"), UpArgs: ["--wait"])
+        ),
+        new("step-ca", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../step-ca/compose.yml")),
+            Hosts: ["ca.myserver.home"]
+        ),
+        new("certbot", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../certbot/compose.yml"), Volumes: ["certbot-etc-data", "certbot-var-data"])
+        ),
+        new("OpenLDAP", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../ldap/compose.yml"), UpArgs: ["--wait"], Volumes: ["openldap-app-data"]),
+            Hosts: ["ldap.myserver.home"]
+        ),
+        new("Keycloak", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../keycloak/compose.yml"), UpArgs: ["--wait"], Volumes: ["keycloak-db-data"]),
+            Endpoints: [new("Keycloak", "https://keycloak.myserver.home")],
+            Hosts: ["keycloak.myserver.home"]
+        ),
+        new("Vaultwarden", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../vaultwarden/compose.yml"), UpArgs: ["--wait"], Volumes: ["vaultwarden-app-data"]),
+            Endpoints: [new("Vaultwarden", "https://vaultwarden.myserver.home")],
+            Hosts: ["vaultwarden.myserver.home"]
+        ),
+        new("Forgejo", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../forgejo/compose.yml"), Volumes: ["forgejo-db-data", "forgejo-app-data"]),
+            Endpoints: [new("Forgejo", "https://forgejo.myserver.home")],
+            Hosts: ["forgejo.myserver.home"]
+        ),
+        new("Forgejo-runner", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../forgejo-runner/compose.yml"), Volumes: ["forgejo-runner-data"])
+        ),
+        new("BookStack", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../bookstack/compose.yml"), UpArgs: ["--wait"], Volumes: ["bookstack-db-data", "bookstack-app-data", "bookstack-redis-data"]),
+            Endpoints: [new("BookStack", "https://bookstack.myserver.home")],
+            Hosts: ["bookstack.myserver.home"]
+        ),
+        new("Nextcloud", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../nextcloud/compose.yml"), UpArgs: ["--wait"], Volumes: ["nextcloud-db-data", "nextcloud-app-data", "nextcloud-redis-data"]),
+            Endpoints: [new("Nextcloud", "https://nextcloud.myserver.home")],
+            Hosts: ["nextcloud.myserver.home"]
+        ),
+        new("Wisemapping", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../wisemapping/compose.yml"), Volumes: ["wisemapping-db-data"]),
+            Endpoints: [new("Wisemapping", "https://wisemapping.myserver.home")],
+            Hosts: ["wisemapping.myserver.home"]
+        ),
+        new("Planka", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../planka/compose.yml"), Volumes: ["planka-db-data", "planka-app-avatars", "planka-app-images", "planka-app-attachments"]),
+            Endpoints: [new("Planka", "https://planka.myserver.home")],
+            Hosts: ["planka.myserver.home"]
+        ),
+        new("UpSnap", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../upsnap/compose.yml"), Volumes: ["upsnap-app-data"]),
+            Endpoints: [new("UpSnap", "https://upsnap.myserver.home")],
+            Hosts: ["upsnap.myserver.home"]
+        ),
+        new("IT-Tools", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../it-tools/compose.yml")),
+            Endpoints: [new("IT-Tools", "https://it-tools.myserver.home")],
+            Hosts: ["it-tools.myserver.home"]
+        ),
+        new("Mini QR", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../mini-qr/compose.yml")),
+            Endpoints: [new("Mini QR", "https://mini-qr.myserver.home")],
+            Hosts: ["mini-qr.myserver.home"]
+        ),
+        new("Scrutiny", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../scrutiny/compose.yml"), Volumes: ["scrutiny-db-data", "scrutiny-app-data"]),
+            Endpoints: [new("Scrutiny", "https://scrutiny.myserver.home")],
+            Hosts: ["scrutiny.myserver.home"]
+        ),
+        new("Mermaid-live-editor", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../mermaid/compose.yml")),
+            Endpoints: [new("Mermaid", "https://mermaid-editor.myserver.home")],
+            Hosts: ["mermaid-editor.myserver.home", "mermaid-ink.myserver.home"]
+        ),
+        new("ReverseProxy", Enabled: true,
+            Compose: new(baseDir.RelativeFile("../proxy/compose.yml"), Volumes: ["proxy-logs", "proxy-reports"]),
+            Endpoints: [new("GoAccess", "https://goaccess.myserver.home")],
+            Hosts: ["goaccess.myserver.home", "goaccess-ws.myserver.home"]
+        ),
+    };
+
+    public IEnumerable<NetworkInfo> GetNetworks() => this.networks
+        .Where(i => i.Enabled)
+        ;
+
+    public IEnumerable<ServiceInfo> GetContainers() => this.containers
+        .Where(i => i.Enabled)
+        ;
+
+    public IEnumerable<string> GetDockerVolumeNames() => this.containers
+        .Where(i => i.Enabled)
+        .SelectMany(i => i.Compose.Volumes ?? [])
+        ;
+
+}

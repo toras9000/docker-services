@@ -1,0 +1,12 @@
+#!/usr/bin/env dotnet-script
+#:package Lestaly.General@0.119.0
+using Lestaly;
+using Lestaly.Cx;
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    Console.WriteLine($">Restart Wisemapping");
+    var bookstackCompose = ThisSource.RelativeFile("../compose.yml");
+    await "docker".args("compose", "--file", bookstackCompose, "down", "app").result().success();
+    await "docker".args("compose", "--file", bookstackCompose, "up", "-d").result().success();
+});

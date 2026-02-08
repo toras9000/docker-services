@@ -1,0 +1,56 @@
+#!/usr/bin/env -S dotnet run --file
+#:package AngleSharp@1.4.0
+#:package Lestaly.General@0.119.0
+#:package Kokuban@0.2.0
+using Lestaly;
+using Lestaly.Cx;
+
+var settings = new
+{
+    ComposeFile = ThisSource.RelativeFile("../compose.yml"),
+
+    Token = new
+    {
+        Name = "admin-script-token",
+        User = "forgejo-admin",
+        Scopes = new[]
+        {
+            new { Name = "activitypub",  Access = ScopeAccess.write, },
+            new { Name = "admin",        Access = ScopeAccess.write, },
+            new { Name = "issue",        Access = ScopeAccess.write, },
+            new { Name = "misc",         Access = ScopeAccess.write, },
+            new { Name = "notification", Access = ScopeAccess.write, },
+            new { Name = "organization", Access = ScopeAccess.write, },
+            new { Name = "package",      Access = ScopeAccess.write, },
+            new { Name = "repository",   Access = ScopeAccess.write, },
+            new { Name = "user",         Access = ScopeAccess.write, },
+        },
+    },
+
+    TokenFile = ThisSource.RelativeFile("./.auth-token"),
+};
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    Console.WriteLine("Generate token");
+    var apiToken = await "docker".args(
+        "compose", "--file", settings.ComposeFile, "exec", "-u", "1000", "app",
+        "forgejo", "admin", "user", "generate-access-token",
+        "--token-name", settings.Token.Name,
+        "--username", settings.Token.User,
+        "--scopes", settings.Token.Scopes.Select(s => $"{s.Access}:{s.Name}").JoinString(","),
+        "--raw"
+    ).silent().result().success().output(trim: true);
+
+    Console.WriteLine("Save token");
+    var scrambler = settings.TokenFile.CreateScrambler(context: settings.TokenFile.FullName);
+    await scrambler.ScrambleTextAsync(apiToken);
+
+    Console.WriteLine("API token generation completed.");
+});
+
+enum ScopeAccess
+{
+    read,
+    write,
+}

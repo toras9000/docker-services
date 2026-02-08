@@ -1,0 +1,49 @@
+name: docker-services-vaultwarden
+
+volumes:
+  vaultwarden-app-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  app:
+    image: vaultwarden/server:1.35.2
+    restart: unless-stopped
+    command: sh -c "
+          cat /work/certs/ca/root_ca.crt >> /etc/ssl/certs/ca-certificates.crt
+       && /start.sh
+      "
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - vaultwarden-app-container
+    healthcheck:
+      test: curl -f -s http://localhost:80 || exit 1
+      start_period: 300s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: volume
+        source: vaultwarden-app-data
+        target: /data
+      - type: bind
+        source: ../step-ca/assets/step/certs
+        target: /work/certs/ca
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      - TZ=Asia/Tokyo
+      - DOMAIN=https://vaultwarden.myserver.home
+      - INVITATIONS_ALLOWED=true
+      - SIGNUPS_ALLOWED=true
+      - ADMIN_TOKEN=$$argon2id$$v=19$$m=65540,t=3,p=4$$usxm21N0w4LWKCXIbfB8MUW7nChwXu8oUAWcNcF/C1w$$r2xZQyHQLvHaI0NUFaJFgts4TkWlXMq5pv8OcIa1WmU
+    env_file:
+      - .vaultwarden.env
+

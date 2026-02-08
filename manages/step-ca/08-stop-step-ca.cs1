@@ -1,0 +1,15 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Lestaly;
+using Lestaly.Cx;
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    var composeFile = ThisSource.RelativeFile("compose.yml");
+    var initFile = ThisSource.RelativeFile("compose-init.yml");
+    await "docker".args(["compose", "--file", composeFile, "down", "--remove-orphans"]).result().success();
+    await "docker".args(["compose", "--file", initFile, "down", "--remove-orphans"]).result().success();
+});

@@ -1,0 +1,83 @@
+#!/usr/bin/env -S dotnet run --file
+#:package ForgejoApiClient@14.0.0-rev.2
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:property PublishAot=false
+using ForgejoApiClient;
+using Kokuban;
+using Lestaly;
+
+var settings = new
+{
+    ServiceURL = new Uri("http://forgejo.myserver.home"),
+
+    TokenFile = ThisSource.RelativeFile("./.auth-token"),
+
+    Targets = new[]
+    {
+        "forgejo-admin",
+    },
+};
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    using var signal = new SignalCancellationPeriod();
+    using var outenc = Console.OutputUtf8EncodingPeriod();
+
+    Console.WriteLine("Service URL");
+    Console.WriteLine($"  {Poster.Link[settings.ServiceURL.AbsoluteUri]}");
+    Console.WriteLine();
+
+    Console.WriteLine("Load token");
+    var scrambler = settings.TokenFile.CreateScrambler(context: settings.TokenFile.FullName);
+    var apiToken = (await scrambler.DescrambleTextAsync(signal.Token))?.Trim();
+    if (apiToken.IsWhite())
+    {
+        Console.WriteLine($".. Not preserved.");
+        Console.WriteLine($"Enter API token");
+        Console.Write(">"); apiToken = Console.ReadLine().CancelIfWhite();
+        await scrambler.ScrambleTextAsync(apiToken, cancelToken: signal.Token);
+    }
+
+    Console.WriteLine("Generate API client");
+    using var forgejo = new ForgejoClient(settings.ServiceURL, apiToken);
+
+    Console.WriteLine("Get quota info");
+    foreach (var name in settings.Targets)
+    {
+        try
+        {
+            Console.WriteLine($"User={name}");
+            var info = await forgejo.Admin.GetUserQuotaRuleAsync(name, signal.Token);
+            Console.WriteLine($"  Used:");
+            Console.WriteLine($"    git.LFS={info.used?.size?.git?.LFS}");
+            Console.WriteLine($"    repo.public={info.used?.size?.repos?.@public}");
+            Console.WriteLine($"    repo.private={info.used?.size?.repos?.@private}");
+            Console.WriteLine($"    assets.artifacts={info.used?.size?.assets?.artifacts}");
+            Console.WriteLine($"    assets.attachments.issues={info.used?.size?.assets?.attachments?.issues}");
+            Console.WriteLine($"    assets.attachments.releases={info.used?.size?.assets?.attachments?.releases}");
+            Console.WriteLine($"    assets.packages.all={info.used?.size?.assets?.packages?.all}");
+            Console.WriteLine($"  Quota:");
+            if (0 < info.groups?.Count)
+            {
+                foreach (var group in info.groups)
+                {
+                    Console.WriteLine($"    Group={group.name}");
+                    foreach (var rule in group.rules ?? [])
+                    {
+                        Console.WriteLine($"      Rule={rule.name}, Limit={rule.limit?.ToHumanize()}, Subjects={rule.subjects?.JoinString(";")}");
+                    }
+                }
+            }
+            else
+            {
+                Console.WriteLine($"    No quota rules");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(Chalk.Red[$".. {ex.Message}"]);
+        }
+        Console.WriteLine();
+    }
+});

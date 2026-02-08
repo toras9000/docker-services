@@ -1,0 +1,21 @@
+name: docker-services-mini-qr
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  app:
+    image: ghcr.io/lyqht/mini-qr:latest
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - mini-qr-app-container
+    healthcheck:
+      test: curl -f -s http://localhost:8080 || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3

@@ -1,0 +1,106 @@
+#!/usr/bin/env -S dotnet run --file
+#:package AngleSharp@1.4.0
+#:package Lestaly.General@0.119.0
+#:package Kokuban@0.2.0
+using System.Net;
+using AngleSharp;
+using AngleSharp.Dom;
+using AngleSharp.Html.Dom;
+using AngleSharp.Io;
+using Kokuban;
+using Lestaly;
+
+var settings = new
+{
+    // Service URL
+    ServiceURL = "http://forgejo.myserver.home",
+
+    // Initial Startup Setup Configuration
+    Setup = new
+    {
+        // Admin user name at setup
+        AdminUser = "forgejo-admin",
+        // Admin password at setup
+        AdminPass = "forgejo-admin-pass",
+        // Admin email address at setup
+        AdminMail = "forgejo-admin@example.com",
+    },
+};
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    using var signal = new SignalCancellationPeriod();
+
+    // Determine initial startup (whether the setup form is displayed)
+    Console.WriteLine("Check initialization status ...");
+    var requester = new DefaultHttpRequester();
+    requester.Timeout = TimeSpan.FromSeconds(3 * 60);
+    var config = Configuration.Default.With(requester).WithDefaultLoader();
+    using var context = BrowsingContext.New(config);
+
+    var setupPage = default(IDocument);
+    using (var timeout = signal.Token.CreateLink(TimeSpan.FromSeconds(30)))
+    {
+        while (setupPage == null)
+        {
+            var document = await context.OpenAsync(settings.ServiceURL, timeout.Token);
+            if (document != null && document.StatusCode == HttpStatusCode.OK && 0 < document.Source.Length)
+            {
+                setupPage = document;
+                break;
+            }
+            document?.Dispose();
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+        }
+    }
+    using (setupPage)
+    {
+        var container = setupPage.QuerySelector<IHtmlDivElement>(".install-config-container");
+        if (container == null)
+        {
+            // If the initial startup screen is not detected, it is assumed that the setup has already been done, so the process is completed.
+            Console.WriteLine($"  {Chalk.Green["The instance has already been initialized."]}");
+            return;
+        }
+
+        // If you get a page that looks like the first startup, the setup process continues.
+        Console.WriteLine("  Detected that initial setup is required.");
+
+        // Attempt to retrieve setup form
+        Console.WriteLine("Perform initial setup ...");
+        var forms = container.Descendants<IHtmlFormElement>().ToArray();
+        if (forms.Length != 1) throw new PavedMessageException("Unexpected setup form");
+
+        // Change settings
+        var setupForm = forms[0];
+        var inputUpdateChecker = setupForm.QuerySelectorAll<IHtmlInputElement>("*").FirstOrDefault(e => e.Type == "checkbox" && e.Name == "enable_update_checker");
+        if (inputUpdateChecker == null) throw new PavedMessageException("Unexpected setup form");
+        inputUpdateChecker.IsChecked = false;
+
+        // Send with setup parameters
+        using var setupResult = await setupForm.SubmitAsync(new
+        {
+            admin_name = settings.Setup.AdminUser,
+            admin_email = settings.Setup.AdminMail,
+            admin_passwd = settings.Setup.AdminPass,
+            admin_confirm_passwd = settings.Setup.AdminPass,
+        });
+        var loadingElement = setupResult.GetElementById("goto-user-login");
+        if (loadingElement == null) throw new PavedMessageException("Unexpected setup result");
+    }
+
+    // Wait completion
+    Console.WriteLine("Wait setup completion ...");
+    using (var timeout = signal.Token.CreateLink(TimeSpan.FromSeconds(30)))
+    {
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            using var document = await context.OpenAsync(settings.ServiceURL, timeout.Token);
+            if (document == null || document.StatusCode != HttpStatusCode.OK || document.Source.Length <= 0) continue;
+            var loading = document.GetElementById("goto-user-login");
+            if (loading == null) break; // loading finish
+        }
+    }
+    Console.WriteLine($"  {Chalk.Green["Setup completed."]}");
+});

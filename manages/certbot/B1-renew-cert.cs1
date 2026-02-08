@@ -1,0 +1,35 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Lestaly.General@0.119.0
+using Lestaly;
+using Lestaly.Cx;
+
+return await Paved.ProceedAsync(noPause: true, async () =>
+{
+    Console.WriteLine("Renew server cert");
+    var composeFile = ThisSource.RelativeFile("compose.yml");
+    await "docker".args([
+        "compose",
+            "--file", composeFile,
+        "exec", "app", "certbot", "renew",
+            "--non-interactive",
+            "--cert-name", "myserver.home",
+            "--force-renewal",
+    ]).result().success();
+
+    Console.WriteLine("Replace server cert");
+    await "docker".args([
+        "compose",
+            "--file", composeFile,
+        "exec", "app", "cp",
+            "/etc/letsencrypt/live/myserver.home/fullchain.pem",
+            "/work/certs/server/server.crt",
+    ]).result().success();
+    await "docker".args([
+        "compose",
+            "--file", composeFile,
+        "exec", "app", "cp",
+            "/etc/letsencrypt/live/myserver.home/privkey.pem",
+            "/work/certs/server/server.key",
+    ]).result().success();
+
+});

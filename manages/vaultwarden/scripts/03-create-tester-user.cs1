@@ -1,0 +1,19 @@
+#!/usr/bin/env -S dotnet run --file
+#:package VwConnector@1.35.0-rev.0
+#:package Lestaly.General@0.119.0
+using Lestaly;
+using VwConnector;
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    using var signal = new SignalCancellationPeriod();
+
+    var service = new Uri("https://vaultwarden.myserver.home");
+    var mail = "tester@myserver.home";
+    var pass = "tester-password";
+
+    Console.WriteLine("Register test user");
+    using var vaultwarden = new VaultwardenConnector(service);
+    await vaultwarden.Account.RegisterUserNoSmtpAsync(new(mail, pass));
+    Console.WriteLine(".. Completed");
+});

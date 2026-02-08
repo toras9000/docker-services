@@ -1,0 +1,95 @@
+name: docker-services-nextcloud
+
+volumes:
+  nextcloud-db-data:
+    external: true
+  nextcloud-app-data:
+    external: true
+  nextcloud-redis-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - nextcloud-db-container
+    healthcheck:
+      test: pg_isready --quiet --host localhost --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: volume
+        source: nextcloud-db-data
+        target: /var/lib/postgresql
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_USER=nextcloud_user
+      - POSTGRES_PASSWORD=nextcloud_secret
+      - POSTGRES_DB=nextcloud_store
+
+  redis:
+    image: redis:8
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - nextcloud-redis-container
+    volumes:
+      - type: volume
+        source: nextcloud-redis-data
+        target: /data
+
+  app:
+    image: nextcloud:32
+    command: sh /assets/startup/run.sh
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - nextcloud-app-container
+    healthcheck:
+      test: curl -f -s http://localhost:80/ || exit 1
+      start_period: 300s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: bind
+        source: ./assets
+        target: /assets
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: nextcloud-app-data
+        target: /var/www/html
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_HOST=nextcloud-db-container
+      - POSTGRES_USER=nextcloud_user
+      - POSTGRES_PASSWORD=nextcloud_secret
+      - POSTGRES_DB=nextcloud_store
+      - NEXTCLOUD_UPDATE=1
+      - NEXTCLOUD_ADMIN_USER=admin
+      - NEXTCLOUD_ADMIN_PASSWORD=admin-pass
+      - NEXTCLOUD_TRUSTED_DOMAINS=localhost myserver.home nextcloud.myserver.home
+      - TRUSTED_PROXIES=172.31.0.0/16
+      - REDIS_HOST=nextcloud-redis-container
+      - REDIS_HOST_PORT=6379

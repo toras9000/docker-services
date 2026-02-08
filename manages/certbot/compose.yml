@@ -1,0 +1,44 @@
+name: docker-services-certbot
+
+volumes:
+  certbot-etc-data:
+    external: true
+  certbot-var-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  app:
+    image: certbot/certbot
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - certbot-app-container
+    init: true
+    entrypoint: sleep
+    command: infinity
+    volumes:
+      - type: bind
+        source: ../step-ca/assets/step/certs
+        target: /work/certs/ca
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../proxy/assets/certs/server
+        target: /work/certs/server
+        bind:
+          create_host_path: false
+      - type: volume
+        source: certbot-etc-data
+        target: /etc/letsencrypt
+      - type: volume
+        source: certbot-var-data
+        target: /var/lib/letsencrypt
+    environment:
+      - TZ=Asia/Tokyo
+      - REQUESTS_CA_BUNDLE=/work/certs/ca/root_ca.crt

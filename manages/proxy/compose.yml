@@ -1,0 +1,126 @@
+name: docker-services-proxy
+
+volumes:
+  proxy-logs:
+    external: true
+  proxy-reports:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  analyzer:
+    image: allinurl/goaccess
+    entrypoint: ""
+    command: sh -c "
+          touch /work/logs/access.log
+       && echo 'start goaccess'
+       && exec goaccess '/work/logs/access.log' --config-file=/work/configs/goaccess.conf --output=/var/www/goaccess/index.html --real-time-html --ws-url=wss://goaccess-ws.myserver.home:443
+      "
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - goaccess-analyzer-container
+    volumes:
+      - type: bind
+        source: ./assets/goaccess
+        target: /work/configs
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: proxy-reports
+        target: /var/www/goaccess
+      - type: volume
+        source: proxy-logs
+        target: /work/logs
+    environment:
+      - TZ=Asia/Tokyo
+
+  ngx_ldap_auth:
+    image: my/ngx_ldap_auth
+    pull_policy: never
+    build:
+      context: ./build/ngx_ldap_auth
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - ngx_ldap_auth-container
+    volumes:
+      - type: bind
+        source: ./assets/configs/ldap_auth/ngx_ldap_auth.conf
+        target: /opt/ngx_auth_mod/conf.d/ngx_ldap_auth.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./assets/certs
+        target: /work/certs
+        read_only: true
+    environment:
+      - TZ=Asia/Tokyo
+
+  proxy:
+    image: my/nginx
+    pull_policy: never
+    build:
+      context: ./build/proxy
+      args:
+        - NGINX_VERSION=1.29
+    restart: unless-stopped
+    depends_on:
+      analyzer:
+        condition: service_started
+      ngx_ldap_auth:
+        condition: service_started
+    networks:
+      composes-frontend:
+    ports:
+      - "80:80"
+      - "443:443"
+      - "389:389"
+      - "636:636"
+    volumes:
+      - type: bind
+        source: ./assets/configs/partial
+        target: /work/configs/partial
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./assets/configs/server
+        target: /etc/nginx/conf.d
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./assets/configs/extra
+        target: /etc/nginx/conf_extra.d
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../step-ca/assets/step/certs
+        target: /work/certs/ca
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./assets/certs/server
+        target: /work/certs/server
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: proxy-reports
+        target: /work/reports
+        read_only: true
+      - type: volume
+        source: proxy-logs
+        target: /work/logs
+    environment:
+      - TZ=Asia/Tokyo

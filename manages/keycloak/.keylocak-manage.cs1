@@ -1,0 +1,13 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Schick.Keycloak.RestApiClient@26.5.3
+using FS.Keycloak.RestApiClient.Authentication.Flow;
+
+public class KeycloakService
+{
+    public PasswordGrantFlow Credential { get; } = new PasswordGrantFlow
+    {
+        KeycloakUrl = "https://keycloak.myserver.home",
+        UserName = "keycloak-admin",
+        Password = "admin-password"
+    };
+}

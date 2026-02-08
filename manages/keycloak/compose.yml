@@ -1,0 +1,83 @@
+name: docker-services-keycloak
+
+volumes:
+  keycloak-db-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - keycloak-db-container
+    healthcheck:
+      test: pg_isready --quiet --host localhost --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: volume
+        source: keycloak-db-data
+        target: /var/lib/postgresql
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_USER=keycloak_user
+      - POSTGRES_PASSWORD=keycloak_secret
+      - POSTGRES_DB=keycloak_store
+
+  app:
+    image: my/keycloak
+    pull_policy: never
+    build:
+      context: ./build
+      args:
+        - KEYCLOAK_VERSION=26.5.4
+        - KC_DB=postgres
+        - KC_HEALTH_ENABLED=true
+        - KC_METRICS_ENABLED=true
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - keycloak-app-container
+    healthcheck:
+      test: bash -c "{ printf 'HEAD /health/ready HTTP/1.0\r\n\r\n' >&0; grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000"
+      start_period: 30s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: bind
+        source: ../step-ca/assets/step/certs/root_ca.crt
+        target: /opt/keycloak/conf/truststores/ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      - TZ=Asia/Tokyo
+      - KEYCLOAK_ADMIN=keycloak-admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin-password
+      - KC_DB=postgres
+      - KC_DB_USERNAME=keycloak_user
+      - KC_DB_PASSWORD=keycloak_secret
+      - KC_DB_URL_HOST=keycloak-db-container
+      - KC_DB_URL_PORT=5432
+      - KC_DB_URL_DATABASE=keycloak_store
+      - KC_HOSTNAME=keycloak.myserver.home
+      - KC_HTTP_ENABLED=true
+      - KC_HTTP_PORT=8080
+      - KC_MANAGEMENT_PORT=9000
+      - KC_PROXY_HEADERS=xforwarded

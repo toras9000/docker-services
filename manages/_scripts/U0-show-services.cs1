@@ -1,0 +1,22 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:package RefFile@0.2.0
+using Lestaly;
+[assembly: RefFile(".target-composes.cs1")]
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    await Task.CompletedTask;
+    Console.WriteLine();
+    Console.WriteLine("Service addresses");
+    var manage = new ManageServices(ThisSource.Directory());
+    var endpoints = manage.GetContainers().SelectMany(c => c.Endpoints ?? []).ToArray();
+    var nameWidth = endpoints.Max(s => s.Name.Length);
+    foreach (var ep in endpoints)
+    {
+        var title = $"{ep.Name.PadRight(nameWidth)} - {ep.Url}";
+        Console.WriteLine($" {Poster.Link[ep.Url, title]}");
+    }
+    Console.WriteLine();
+});

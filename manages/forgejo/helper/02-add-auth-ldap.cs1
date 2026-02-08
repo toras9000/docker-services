@@ -1,0 +1,70 @@
+#!/usr/bin/env -S dotnet run --file
+#:package AngleSharp@1.4.0
+#:package Lestaly.General@0.119.0
+#:package Kokuban@0.2.0
+using Lestaly;
+using Lestaly.Cx;
+
+var settings = new
+{
+    ComposeFile = ThisSource.RelativeFile("../compose.yml"),
+
+    Auth = new
+    {
+        Name = "myserver-ldap",
+        Host = "ldap.myserver.home",
+        Port = 636,
+        Security = SecurityProtocol.LDAPS,
+        SearchBaseDn = "ou=persons,ou=accounts,dc=myserver,o=home",
+        UserFilter = "(&(objectClass=inetOrgPerson)(|(uid=%[1]s)(mail=%[1]s)))",
+        AttrUser = "uid",
+        AttrGivenname = "givenName",
+        AttrSurname = "sn",
+        AttrMailaddr = "mail",
+
+    },
+};
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    Console.WriteLine("Check auth list");
+    var authList = await "docker".args(
+        "compose", "--file", settings.ComposeFile, "exec", "-u", "1000", "app",
+        "forgejo", "admin", "auth", "list",
+        "--pad-char", "\t"
+    ).silent().result().success().output();
+
+    var authNames = authList.AsTextLines().Select(e => e.Split('\t', StringSplitOptions.TrimEntries).Skip(1).FirstOrDefault());
+    if (authNames.Contains(settings.Auth.Name))
+    {
+        Console.WriteLine(".. Already exists");
+        return;
+    }
+
+    Console.WriteLine("Add LDAP auth");
+    await "docker".args(
+        "compose", "--file", settings.ComposeFile, "exec", "-u", "1000", "app",
+        "forgejo", "admin", "auth", "add-ldap",
+        "--active",
+        "--name", settings.Auth.Name,
+        "--host", settings.Auth.Host,
+        "--port", $"{settings.Auth.Port}",
+        "--security-protocol", $"{settings.Auth.Security}",
+        "--user-search-base", settings.Auth.SearchBaseDn,
+        "--user-filter", settings.Auth.UserFilter,
+        "--username-attribute", settings.Auth.AttrUser,
+        "--firstname-attribute", settings.Auth.AttrGivenname,
+        "--surname-attribute", settings.Auth.AttrSurname,
+        "--email-attribute", settings.Auth.AttrMailaddr,
+        "--synchronize-users"
+    ).echo().result().success().output();
+
+    Console.WriteLine("LDAP auth addtion completed.");
+});
+
+enum SecurityProtocol
+{
+    Unencrypted,
+    LDAPS,
+    StartTLS,
+}

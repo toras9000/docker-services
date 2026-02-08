@@ -1,0 +1,42 @@
+name: docker-services-scrutiny
+
+volumes:
+  scrutiny-db-data:
+    external: true
+  scrutiny-app-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  app:
+    image: ghcr.io/analogj/scrutiny:master-omnibus
+    restart: unless-stopped
+    networks:
+      composes-frontend:
+        aliases:
+          - scrutiny-app-container
+    cap_add:
+      - SYS_RAWIO
+# for NVMe
+#      - SYS_ADMIN
+    devices:
+      - /dev/sda
+    volumes:
+      - type: volume
+        source: scrutiny-db-data
+        target: /opt/scrutiny/influxdb
+      - type: volume
+        source: scrutiny-app-data
+        target: /opt/scrutiny/config
+#      - type: bind
+#        source: /run/udev
+#        target: /run/udev
+#        read_only: true
+#        bind:
+#          create_host_path: false
+    environment:
+      - TZ=Asia/Tokyo
+
