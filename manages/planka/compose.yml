@@ -1,0 +1,124 @@
+name: docker-services-planka
+
+volumes:
+  planka-db-data:
+    external: true
+  planka-app-avatars:
+    external: true
+  planka-app-images:
+    external: true
+  planka-app-attachments:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - planka-db-container
+    healthcheck:
+      test: pg_isready --quiet --host localhost --dbname=$${POSTGRES_DB} --username=$${POSTGRES_USER} || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: volume
+        source: planka-db-data
+        target: /var/lib/postgresql
+    environment:
+      - TZ=Asia/Tokyo
+      - POSTGRES_USER=planka_user
+      - POSTGRES_PASSWORD=planka_secret
+      - POSTGRES_DB=planka_store
+
+  app:
+    image: ghcr.io/plankanban/planka:2.0.1
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - planka-app-container
+    healthcheck:
+      test: curl -f -s http://localhost:1337 || exit 1
+      start_period: 60s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: bind
+        source: ../step-ca/assets/step/certs
+        target: /work/certs/ca
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: planka-app-avatars
+        target: /app/public/user-avatars
+      - type: volume
+        source: planka-app-images
+        target: /app/public/project-background-images
+      - type: volume
+        source: planka-app-attachments
+        target: /app/private/attachments
+    environment:
+      - NODE_EXTRA_CA_CERTS=/work/certs/ca/root_ca.crt
+      - BASE_URL=https://planka.myserver.home
+      - DATABASE_URL=postgresql://planka_user:planka_secret@planka-db-container/planka_store
+      - SECRET_KEY=185bf2242704c5982dcbd7d3a8386ae69adc256e99b43363cbfbf6f7e95e13d8527b54d18fb333f4ea02f5663d2e5506adba5443be215f96db7fc8a749bca7e5
+      - TRUST_PROXY=1
+      - DEFAULT_ADMIN_USERNAME=planka-admin
+      - DEFAULT_ADMIN_PASSWORD=planka-admin-pass
+      - DEFAULT_ADMIN_NAME=Planka Admin
+      - DEFAULT_ADMIN_EMAIL=planka-admin@example.com
+      - SHOW_DETAILED_AUTH_ERRORS=true
+      - ALLOW_ALL_TO_CREATE_PROJECTS=true
+      - TOKEN_EXPIRES_IN=365
+      - OIDC_ISSUER=https://keycloak.myserver.home/realms/master
+      - OIDC_CLIENT_ID=Planka
+      - OIDC_CLIENT_SECRET=9Vw2uI6u6snUJf80zkJkqHR3ZU9dh4UW
+      - OIDC_IGNORE_USERNAME=true
+      # - OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG=
+      # - OIDC_USERINFO_SIGNED_RESPONSE_ALG=
+      # - OIDC_SCOPES=openid email profile
+      # - OIDC_RESPONSE_MODE=fragment
+      # - OIDC_USE_DEFAULT_RESPONSE_MODE=true
+      # - OIDC_ADMIN_ROLES=admin
+      # - OIDC_CLAIMS_SOURCE=userinfo
+      # - OIDC_EMAIL_ATTRIBUTE=email
+      # - OIDC_NAME_ATTRIBUTE=name
+      # - OIDC_USERNAME_ATTRIBUTE=preferred_username
+      # - OIDC_ROLES_ATTRIBUTE=groups
+      # - OIDC_IGNORE_ROLES=true
+      # - OIDC_ENFORCED=true
+
+      # Email Notifications (https://nodemailer.com/smtp/)
+      # - SMTP_HOST=
+      # - SMTP_PORT=587
+      # - SMTP_NAME=
+      # - SMTP_SECURE=true
+      # - SMTP_USER=
+      # - SMTP_PASSWORD=
+      # - SMTP_FROM="Demo Demo" <demo@demo.demo>
+      # - SMTP_TLS_REJECT_UNAUTHORIZED=false
+
+      # Optional fields: accessToken, events, excludedEvents
+      # - |
+      #   WEBHOOKS=[{
+      #     "url": "http://localhost:3001",
+      #     "accessToken": "notaccesstoken",
+      #     "events": ["cardCreate", "cardUpdate", "cardDelete"],
+      #     "excludedEvents": ["notificationCreate", "notificationUpdate"]
+      #   }]

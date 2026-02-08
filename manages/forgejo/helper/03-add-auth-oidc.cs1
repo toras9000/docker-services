@@ -1,0 +1,55 @@
+#!/usr/bin/env -S dotnet run --file
+#:package AngleSharp@1.4.0
+#:package Lestaly.General@0.119.0
+#:package Kokuban@0.2.0
+#:package RefFile@0.2.0
+#:property PublishAot=false
+using Lestaly;
+using Lestaly.Cx;
+[assembly: RefFile(".data-types.cs1")]
+
+var settings = new
+{
+    ComposeFile = ThisSource.RelativeFile("../compose.yml"),
+
+    Auth = new
+    {
+        Name = "myserver-oidc",
+    },
+
+    ClientInfoFile = ThisSource.RelativeFile("../.oidc.json"),
+};
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    using var signal = new SignalCancellationPeriod();
+
+    Console.WriteLine("Check auth list");
+    var authList = await "docker".args(
+        "compose", "--file", settings.ComposeFile, "exec", "-u", "1000", "app",
+        "forgejo", "admin", "auth", "list",
+        "--pad-char", "\t"
+    ).silent().result().success().output();
+
+    var authNames = authList.AsTextLines().Select(e => e.Split('\t', StringSplitOptions.TrimEntries).Skip(1).FirstOrDefault());
+    if (authNames.Contains(settings.Auth.Name))
+    {
+        Console.WriteLine(".. Already exists");
+        return;
+    }
+
+    var client = await settings.ClientInfoFile.ReadJsonAsync<KeycloakForgejoClient>(signal.Token) ?? throw new Exception("Cannot load oidc settings");
+
+    Console.WriteLine("Add LDAP auth");
+    await "docker".args(
+        "compose", "--file", settings.ComposeFile, "exec", "-u", "1000", "app",
+        "forgejo", "admin", "auth", "add-oauth",
+        "--name", settings.Auth.Name,
+        "--provider", "openidConnect",
+        "--key", client.ClientID,
+        "--secret", client.ClientSecret,
+        "--auto-discover-url", client.DiscoverUrl
+    ).echo().result().success().output();
+
+    Console.WriteLine("OIDC auth addtion completed.");
+});

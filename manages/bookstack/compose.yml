@@ -1,0 +1,126 @@
+name: docker-services-bookstack
+
+volumes:
+  bookstack-db-data:
+    external: true
+  bookstack-app-data:
+    external: true
+  bookstack-redis-data:
+    external: true
+
+networks:
+  composes-frontend:
+    external: true
+
+services:
+  db:
+    image: mysql:8
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - bookstack-db-container
+    healthcheck:
+      test: mysqladmin ping --host=localhost --user=$${MYSQL_USER} || exit 1
+      start_period: 180s
+      start_interval: 5s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: volume
+        source: bookstack-db-data
+        target: /var/lib/mysql
+    environment:
+      - TZ=Asia/Tokyo
+      - MYSQL_ROOT_PASSWORD=bookstack_rootpass
+      - MYSQL_DATABASE=bookstack_store
+      - MYSQL_USER=bookstack_user
+      - MYSQL_PASSWORD=bookstack_pass
+
+  redis:
+    image: redis:8
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - bookstack-redis-container
+    volumes:
+      - type: volume
+        source: bookstack-redis-data
+        target: /data
+
+  weasyprint:
+    image: 4teamwork/weasyprint:latest
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - bookstack-weasyprint-container
+    volumes:
+      - type: bind
+        source: ./assets/fonts
+        target: /usr/local/share/fonts
+        read_only: true
+        bind:
+          create_host_path: true
+
+  app:
+    image: lscr.io/linuxserver/bookstack:version-v25.12.6
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+      composes-frontend:
+        aliases:
+          - bookstack-app-container
+    healthcheck:
+      test: curl -f -s http://localhost:80 || exit 1
+      start_period: 300s
+      start_interval: 3s
+      timeout: 5s
+      interval: 300s
+      retries: 3
+    volumes:
+      - type: bind
+        source: ../step-ca/assets/step/certs
+        target: /work/certs/ca
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./assets/init
+        target: /custom-cont-init.d
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./assets/template
+        target: /assets/template
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: bookstack-app-data
+        target: /config
+    environment:
+      - TZ=Asia/Tokyo
+      - PUID=1000
+      - PGID=1000
+      - APP_URL=https://bookstack.myserver.home
+      - APP_KEY=base64:EE9OBef6jsw7268M+LLMJKvkZ9R9gXhIqwIdwdIzJ2I=
+      - DB_HOST=bookstack-db-container
+      - DB_DATABASE=bookstack_store
+      - DB_USERNAME=bookstack_user
+      - DB_PASSWORD=bookstack_pass
+      - APP_THEME=my-theme
+      - API_REQUESTS_PER_MIN=180
+      - CACHE_DRIVER=redis
+      - SESSION_DRIVER=redis
+      - REDIS_SERVERS=bookstack-redis-container:6379:0
+      - SESSION_LIFETIME=20160
+      - EXPORT_PDF_COMMAND='EXPORT_HTML={input_html_path}; curl -F "html=@$$EXPORT_HTML" http://bookstack-weasyprint-container:8080 -o {output_pdf_path}'
+    env_file:
+      - .bookstack.env

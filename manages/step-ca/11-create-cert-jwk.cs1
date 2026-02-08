@@ -1,0 +1,23 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Lestaly.General@0.119.0
+using Lestaly;
+using Lestaly.Cx;
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    Console.WriteLine("Create server cert");
+    var composeFile = ThisSource.RelativeFile("compose.yml");
+    await "docker".args([
+        "compose", "--file", composeFile, "run", "app",
+        "step", "ca", "certificate",
+            "--provisioner=default",
+            "--password-file=/home/step/secrets/password",
+            "--san", "myserver.home",
+            "--san", "*.myserver.home",
+            "--offline",
+            "--force",
+            "myserver.home",
+            "/work/certs/server/server.crt",
+            "/work/certs/server/server.key"
+    ]).result().success();
+});

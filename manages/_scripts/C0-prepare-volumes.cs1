@@ -1,0 +1,31 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:package RefFile@0.2.0
+using Kokuban;
+using Lestaly;
+using Lestaly.Cx;
+[assembly: RefFile(".target-composes.cs1")]
+
+async ValueTask ensureNamedVolumeAsync(string name)
+{
+    var vollist = await "docker".args("volume", "ls", "--filter", $"name={name}", "--format", "{{.Name}}").silent().result().output();
+    var volumes = vollist.AsTextLines().DropWhite().ToArray();
+    var exists = volumes.Contains(name);
+    if (exists)
+    {
+        Console.WriteLine(Chalk.Gray[$" {name} - already exists"]);
+    }
+    else
+    {
+        Console.Write(" ");
+        await "docker".args(["volume", "create", "--driver", "local", name]);
+    }
+}
+
+Console.WriteLine("Prepare volumes");
+var manage = new ManageServices(ThisSource.Directory());
+foreach (var name in manage.GetDockerVolumeNames())
+{
+    await ensureNamedVolumeAsync(name);
+}

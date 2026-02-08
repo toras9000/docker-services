@@ -1,0 +1,30 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:package RefFile@0.2.0
+using Lestaly;
+using Lestaly.Cx;
+[assembly: RefFile(".target-composes.cs1")]
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    await "dotnet".args("run", "--file", ThisSource.RelativeFile("C2-stop-composes.cs1"), "--", "--no-pause");
+
+    Console.WriteLine($"Delete volumes");
+    var manage = new ManageServices(ThisSource.Directory());
+    foreach (var name in manage.GetDockerVolumeNames())
+    {
+        var vollist = await "docker".args("volume", "ls", "--filter", $"name={name}", "--format", "{{.Name}}").silent().result().output();
+        var volumes = vollist.AsTextLines().DropWhite().ToArray();
+        var exists = volumes.Contains(name);
+        if (exists)
+        {
+            Console.Write(" ");
+            var result = await "docker".args(["volume", "rm", name]).result();
+            if (result.ExitCode != 0)
+            {
+                Console.WriteLine($".. Failed");
+            }
+        }
+    }
+});

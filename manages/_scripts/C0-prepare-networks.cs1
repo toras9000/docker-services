@@ -1,0 +1,30 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:package RefFile@0.2.0
+using Kokuban;
+using Lestaly;
+using Lestaly.Cx;
+[assembly: RefFile(".target-composes.cs1")]
+
+async ValueTask ensureNetworkAsync(string name, string subnet, params string[] additional)
+{
+    var check = await "docker".args("network", "ls", "--filter", $"name={name}", "--format", "{{.Name}}").silent().result().output();
+    if (check.IsWhite())
+    {
+        Console.Write(" ");
+        await "docker".args(["network", "create", name, "--subnet", subnet, .. additional]);
+    }
+    else
+    {
+        Console.WriteLine(Chalk.Gray[$" {name} - already exists"]);
+    }
+}
+
+Console.WriteLine("Prepare networks");
+var manage = new ManageServices(ThisSource.Directory());
+foreach (var nw in manage.GetNetworks())
+{
+    await ensureNetworkAsync(nw.Name, nw.Subnet);
+}
+

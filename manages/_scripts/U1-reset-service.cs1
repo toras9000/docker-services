@@ -1,0 +1,76 @@
+#!/usr/bin/env -S dotnet run --file
+#:package Kokuban@0.2.0
+#:package Lestaly.General@0.119.0
+#:package RefFile@0.2.0
+using Kokuban;
+using Lestaly;
+using Lestaly.Cx;
+[assembly: RefFile(".target-composes.cs1")]
+
+return await Paved.ProceedAsync(noPause: true, async () =>
+{
+    var manage = new ManageServices(ThisSource.Directory());
+    var containers = manage.GetContainers().ToArray();
+    var namewidth = containers.Max(c => c.Name.Length);
+
+    var services = new List<string>();
+    for (var i = 0; i < containers.Length; i++)
+    {
+        var container = containers[i];
+        var padding = new string('.', 2 + namewidth - container.Name.Length);
+        var endpoints = container.Endpoints?.Length switch
+        {
+            1 => $" {padding} {Poster.Link[container.Endpoints[0].Url]}",
+            >= 2 => container.Endpoints.Select((ep, i) => $"[{Poster.Link[ep.Url, "Address"]}]").JoinString(" ").DecoratePrefix($" {padding} "),
+            _ => default,
+        };
+        services.Add($"  {i + 1,2}: {container.Name}{endpoints}");
+    }
+
+    void WriteServices(string caption)
+    {
+        Console.WriteLine(caption);
+        foreach (var svc in services) Console.WriteLine(svc);
+        Console.WriteLine();
+    }
+
+    Console.WriteLine("Reset (restart & delete volumes) specify service");
+    WriteServices("Service list:");
+
+    while (true)
+    {
+        Console.Write(">");
+        var input = Console.ReadLine();
+        if (input.IsWhite()) continue;
+
+        var number = input.TryParseNumber<int>();
+        if (!number.HasValue) { Console.WriteLine(Chalk.Yellow["Illegal number"]); continue; }
+        var target = containers.ElementAtOrDefault(number.Value - 1);
+        if (target == null) { WriteServices(Chalk.Yellow["Specify service number"]); continue; }
+
+        try
+        {
+            Console.WriteLine($"Target: {Chalk.Green[target.Name]}");
+            Console.WriteLine("Down service");
+            await "docker".args("compose", "--file", target.Compose.File, "down", "--volumes", "--remove-orphans").silent().result().success();
+
+            if (0 < target.Compose.Volumes?.Length)
+            {
+                Console.WriteLine("Recreate volumes");
+                foreach (var vol in target.Compose.Volumes)
+                {
+                    await "docker".args(["volume", "rm", vol]).silent();
+                    await "docker".args(["volume", "create", "--driver", "local", vol]).silent().result().success();
+                }
+            }
+
+            Console.WriteLine("Up service");
+            await "docker".args(["compose", "--file", target.Compose.File, "up", "-d"]);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(Chalk.Red[$"Error: {ex.Message}"]);
+        }
+        Console.WriteLine();
+    }
+});
