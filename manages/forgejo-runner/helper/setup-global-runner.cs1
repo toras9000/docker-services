@@ -1,0 +1,58 @@
+#!/usr/bin/env -S dotnet run --file
+#:package ForgejoApiClient@15.0.0-rev.1
+#:package Lestaly.General@0.123.0
+#:property PublishAot=false
+using System.Text;
+using ForgejoApiClient;
+using Lestaly;
+
+var settings = new
+{
+    ForgejoURL = new Uri("https://forgejo.myserver.home"),
+    ForgejoApiTokenFile = ThisSource.RelativeFile("../../forgejo/helper/.auth-token"),
+
+    RunnerName = "DefaultRunner",
+
+    ServiceConfigFile = ThisSource.RelativeFile("../assets/configs/service.yml"),
+};
+
+return await Paved.ProceedAsync(noPause: args.RoughContains("--no-pause"), async () =>
+{
+    using var signal = new SignalCancellationPeriod();
+
+    Console.WriteLine("Load API token");
+    var scrambler = settings.ForgejoApiTokenFile.CreateScrambler(context: settings.ForgejoApiTokenFile.FullName);
+    var apiToken = (await scrambler.DescrambleTextAsync(signal.Token))?.Trim();
+    if (apiToken.IsWhite())
+    {
+        if (args.RoughContains("--no-interact")) throw new InvalidOperationException("No api token");
+        Console.WriteLine($".. Not preserved.");
+        Console.WriteLine($"Enter API token");
+        Console.Write(">");
+        apiToken = Console.ReadLine().CancelIfWhite();
+    }
+
+    Console.WriteLine("Create API client");
+    using var forgejo = new ForgejoClient(settings.ForgejoURL, apiToken);
+
+    Console.WriteLine("Check Runner Registration");
+    var runners = await forgejo.Admin.ListActionsRunnersAsync(cancelToken: signal.Token);
+    if (runners.Any(r => r.name == settings.RunnerName))
+    {
+        Console.WriteLine(".. Already registered.");
+        return;
+    }
+
+    Console.WriteLine("Create runner settings");
+    var runner = await forgejo.Admin.CreateActionsRunnerAsync(new(settings.RunnerName), signal.Token);
+    Console.WriteLine($".. Created: uuid={runner.uuid}");
+
+    Console.WriteLine("Create service config");
+    await settings.ServiceConfigFile.WriteMultilineTextAsync(lineBreak: "\n", encoding: new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), multiline: $"""
+        forgejo:
+          url: {settings.ForgejoURL}
+          uuid: {runner.uuid}
+          token: {runner.token}
+    """.AsMemory(), signal.Token);
+
+});

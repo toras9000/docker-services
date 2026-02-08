@@ -1,0 +1,7 @@
+﻿volumes
+manages/forgejo/helper/.auth-token
+manages/step-ca/assets/step
+manages/proxy/assets/certs
+manages/forgejo/.oidc.json
+manages/forgejo-runner/assets/configs/service.yml
+manages/vaultwarden/.vaultwarden.env
